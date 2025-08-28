@@ -447,7 +447,12 @@ class EnglishLearningInterface:
                 'displayed': True
             })
         
-        st.info("💡 图片显示完成。AI处理功能已暂时禁用。")
+        # 添加AI处理按钮
+        st.markdown("---")
+        if st.button("🤖 开始AI识别处理", type="primary"):
+            return self._process_images_with_ai(uploaded_files, results)
+        
+        st.info("💡 图片显示完成。点击上方按钮开始AI处理。")
         return {'results': results, 'source': 'upload_display_only'}
     
     def _save_file_to_static_and_get_url(self, uploaded_file) -> Optional[str]:
@@ -530,6 +535,166 @@ class EnglishLearningInterface:
         
         print(f"[环境检测] 检测到本地环境")
         return False
+    
+    def _process_images_with_ai(self, uploaded_files: List, file_results: List[Dict]) -> Dict:
+        """使用AI处理图片并清理临时文件"""
+        st.markdown("### 🤖 AI识别处理中...")
+        
+        # 初始化处理器
+        if not self._initialize_processors():
+            st.error("❌ 处理器初始化失败")
+            return None
+        
+        processed_results = []
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for i, (uploaded_file, file_info) in enumerate(zip(uploaded_files, file_results)):
+            status_text.text(f"🔍 正在处理: {uploaded_file.name}")
+            
+            try:
+                # 获取静态URL
+                static_url = file_info.get('url')
+                if not static_url:
+                    st.error(f"❌ 无法获取文件URL: {uploaded_file.name}")
+                    continue
+                
+                print(f"\n[AI处理] ==================== 开始AI识别 ====================")
+                print(f"[AI处理] 📁 文件名: {uploaded_file.name}")
+                print(f"[AI处理] 🔗 静态URL: {static_url}")
+                print(f"[AI处理] 📊 文件大小: {uploaded_file.size} bytes")
+                
+                # 调用GLM-4V-Flash进行识别
+                status_text.text(f"🔍 GLM-4V-Flash识别中: {uploaded_file.name}")
+                
+                # 使用静态URL调用AI识别
+                vision_result = self.vision_processor.process_image(static_url, uploaded_file=None)  # 传递URL而非文件
+                
+                print(f"[AI处理] ✅ GLM-4V-Flash处理完成")
+                print(f"[AI处理] 🎯 识别成功: {vision_result['success']}")
+                
+                if vision_result['success']:
+                    print(f"[AI处理] 📝 识别文本长度: {len(vision_result.get('raw_text', ''))} 字符")
+                    
+                    # AI增强处理
+                    status_text.text(f"🤖 AI分析增强中: {uploaded_file.name}")
+                    enhanced_result = self.ai_analyzer.process_image_with_ai(
+                        vision_result, f"英语教材 - {uploaded_file.name}"
+                    )
+                    
+                    result = {
+                        'filename': uploaded_file.name,
+                        'static_url': static_url,
+                        'success': True,
+                        'vision_result': vision_result,
+                        'enhanced_result': enhanced_result,
+                        'file_path': self._get_static_file_path(static_url)  # 用于后续清理
+                    }
+                    
+                    st.success(f"✅ {uploaded_file.name} 处理完成")
+                    
+                else:
+                    print(f"[AI处理] ❌ 识别失败: {vision_result.get('error', '未知错误')}")
+                    result = {
+                        'filename': uploaded_file.name,
+                        'static_url': static_url,
+                        'success': False,
+                        'error': vision_result.get('error', '识别失败'),
+                        'file_path': self._get_static_file_path(static_url)
+                    }
+                    st.error(f"❌ {uploaded_file.name} 处理失败: {result['error']}")
+                
+                processed_results.append(result)
+                
+            except Exception as e:
+                error_msg = f"处理异常: {e}"
+                print(f"[AI处理] ❌ {error_msg}")
+                st.error(f"❌ {uploaded_file.name}: {error_msg}")
+                
+                processed_results.append({
+                    'filename': uploaded_file.name,
+                    'static_url': file_info.get('url'),
+                    'success': False,
+                    'error': error_msg,
+                    'file_path': self._get_static_file_path(file_info.get('url')) if file_info.get('url') else None
+                })
+            
+            progress_bar.progress((i + 1) / len(uploaded_files))
+        
+        # 处理完成后清理临时文件
+        st.markdown("### 🧹 清理临时文件...")
+        cleanup_results = self._cleanup_static_files(processed_results)
+        
+        status_text.text("✅ 所有处理完成！")
+        
+        final_result = {
+            'results': processed_results,
+            'source': 'ai_processed',
+            'cleanup_summary': cleanup_results
+        }
+        
+        return final_result
+    
+    def _get_static_file_path(self, static_url: str) -> Optional[str]:
+        """从静态URL获取本地文件路径"""
+        if not static_url:
+            return None
+        
+        try:
+            from pathlib import Path
+            # 从URL中提取文件名
+            filename = static_url.split('/')[-1]
+            
+            # 构造本地文件路径
+            project_root = Path(__file__).parent.parent.parent
+            static_dir = project_root / "static"
+            file_path = static_dir / filename
+            
+            return str(file_path) if file_path.exists() else None
+        except Exception as e:
+            print(f"[文件路径] ❌ 获取文件路径失败: {e}")
+            return None
+    
+    def _cleanup_static_files(self, processed_results: List[Dict]) -> Dict:
+        """清理处理完成的静态文件"""
+        cleanup_summary = {
+            'total_files': len(processed_results),
+            'deleted_files': 0,
+            'failed_deletions': 0,
+            'deleted_list': [],
+            'failed_list': []
+        }
+        
+        for result in processed_results:
+            file_path = result.get('file_path')
+            filename = result.get('filename', 'unknown')
+            
+            if file_path:
+                try:
+                    import os
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        cleanup_summary['deleted_files'] += 1
+                        cleanup_summary['deleted_list'].append(filename)
+                        print(f"[清理] ✅ 已删除: {file_path}")
+                    else:
+                        print(f"[清理] ⚠️ 文件不存在: {file_path}")
+                except Exception as e:
+                    cleanup_summary['failed_deletions'] += 1
+                    cleanup_summary['failed_list'].append(filename)
+                    print(f"[清理] ❌ 删除失败 {file_path}: {e}")
+            else:
+                print(f"[清理] ⚠️ 无法获取文件路径: {filename}")
+        
+        # 显示清理结果
+        if cleanup_summary['deleted_files'] > 0:
+            st.success(f"🧹 已清理 {cleanup_summary['deleted_files']} 个临时文件")
+        
+        if cleanup_summary['failed_deletions'] > 0:
+            st.warning(f"⚠️ {cleanup_summary['failed_deletions']} 个文件清理失败")
+        
+        print(f"[清理] 📊 清理统计: {cleanup_summary}")
+        return cleanup_summary
     
     def _initialize_processors(self) -> bool:
         """初始化处理器"""

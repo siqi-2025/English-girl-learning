@@ -284,8 +284,8 @@ class ZhipuAIClient:
 
 请直接返回识别出的英语文字内容，不需要额外的解释。"""
 
-            # GLM-4V-Flash需要网络可访问的图片URL，使用GitHub图床上传
-            print(f"[GLM-4V-Flash] 开始准备图像URL，uploaded_file存在: {uploaded_file is not None}")
+            # GLM-4V-Flash处理图片URL
+            print(f"[GLM-4V-Flash] 开始准备图片URL，输入类型: {type(image_input)}")
             
             import streamlit as st
             import tempfile
