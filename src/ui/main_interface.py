@@ -198,20 +198,48 @@ class EnglishLearningInterface:
                 status_text.text(f"正在处理: {uploaded_file.name}")
                 
                 try:
-                    # OCR处理
+                    # 步骤1: GLM-4V-Flash视觉识别
+                    status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {uploaded_file.name}")
                     ocr_result = self.ocr_processor.process_image(
                         uploaded_file.getvalue(), 
                         enhance=settings['enhance_image']
                     )
                     
-                    # AI增强处理
+                    # 调试：显示OCR结果
+                    st.write("**调试信息 - OCR结果：**")
+                    st.json(ocr_result)
+                    
+                    # 步骤2: AI增强处理
                     if ocr_result['success']:
-                        enhanced_result = self.ai_ocr.process_image_with_ai(
-                            ocr_result, f"英语教材 - {uploaded_file.name}"
-                        )
-                        enhanced_result['filename'] = uploaded_file.name
-                        results.append(enhanced_result)
-                        st.session_state.processed_count += 1
+                        status_text.text(f"🤖 步骤2: AI分析和增强 - {uploaded_file.name}")
+                        st.info(f"识别到的文本长度: {len(ocr_result.get('raw_text', ''))}")
+                        
+                        try:
+                            enhanced_result = self.ai_ocr.process_image_with_ai(
+                                ocr_result, f"英语教材 - {uploaded_file.name}"
+                            )
+                            # 调试：显示AI增强结果
+                            st.write("**调试信息 - AI增强结果：**")
+                            st.json(enhanced_result)
+                            
+                            enhanced_result['filename'] = uploaded_file.name
+                            results.append(enhanced_result)
+                            st.session_state.processed_count += 1
+                        except Exception as ai_error:
+                            st.error(f"AI处理失败: {ai_error}")
+                            # 创建基本的错误结果
+                            enhanced_result = {
+                                'success': False,
+                                'error': str(ai_error),
+                                'raw_text': ocr_result.get('raw_text', ''),
+                                'confidence': ocr_result.get('confidence', 0),
+                                'analysis': {}
+                            }
+                            enhanced_result['filename'] = uploaded_file.name
+                            results.append(enhanced_result)
+                    else:
+                        st.error(f"OCR识别失败: {ocr_result.get('error', '未知错误')}")
+                        continue
                     
                 except Exception as e:
                     st.error(f"处理 {uploaded_file.name} 时出错: {e}")
