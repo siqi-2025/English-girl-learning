@@ -111,34 +111,37 @@ class ImagePreprocessor:
         return rotated
 
 
+@st.cache_resource
+def _get_ocr_instance():
+    """获取OCR实例 - 使用全局缓存避免重复初始化"""
+    if not OCR_AVAILABLE:
+        return "basic_ocr"
+    
+    try:
+        ocr_config = config.get("ocr", {})
+        
+        return PaddleOCR(
+            use_angle_cls=ocr_config.get("angle_classification", True),
+            lang=ocr_config.get("languages", ["ch", "en"])[0],  # 主语言
+            use_gpu=ocr_config.get("use_gpu", False),
+            show_log=False,
+            enable_mkldnn=ocr_config.get("enable_mkldnn", True)
+        )
+    except Exception as e:
+        st.error(f"OCR模型初始化失败: {e}")
+        return "basic_ocr"
+
+
 class OCRProcessor:
     """AI增强OCR处理器"""
     
     def __init__(self):
-        self.ocr_model = None
         self.preprocessor = ImagePreprocessor()
-        self._initialize_ocr()
     
-    @st.cache_resource
-    def _initialize_ocr(_self):
-        """初始化OCR模型 - 使用缓存避免重复加载"""
-        if not OCR_AVAILABLE:
-            st.warning("⚠️ 高级OCR功能不可用，使用基础文本识别模式")
-            return "basic_ocr"  # 返回标记而不是None
-        
-        try:
-            ocr_config = config.get("ocr", {})
-            
-            return PaddleOCR(
-                use_angle_cls=ocr_config.get("angle_classification", True),
-                lang=ocr_config.get("languages", ["ch", "en"])[0],  # 主语言
-                use_gpu=ocr_config.get("use_gpu", False),
-                show_log=False,
-                enable_mkldnn=ocr_config.get("enable_mkldnn", True)
-            )
-        except Exception as e:
-            st.error(f"OCR模型初始化失败: {e}")
-            return "basic_ocr"  # 备用方案
+    @property
+    def ocr_model(self):
+        """延迟加载OCR模型"""
+        return _get_ocr_instance()
     
     def process_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray], 
                      enhance: bool = True) -> Dict:
@@ -152,19 +155,11 @@ class OCRProcessor:
         Returns:
             OCR识别结果字典
         """
-        if self.ocr_model is None:
-            self.ocr_model = self._initialize_ocr()
-            if self.ocr_model is None:
-                return {
-                    'success': False,
-                    'error': 'OCR模型未初始化',
-                    'raw_text': '',
-                    'confidence': 0.0,
-                    'details': []
-                }
+        # 获取OCR模型实例
+        ocr_model = self.ocr_model
         
         # 处理基础OCR模式
-        if self.ocr_model == "basic_ocr":
+        if ocr_model == "basic_ocr":
             return self._basic_ocr_fallback(image_input)
         
         try:
@@ -178,7 +173,7 @@ class OCRProcessor:
                 processed_image = image_array
             
             # OCR识别
-            ocr_results = self.ocr_model.ocr(processed_image, cls=True)
+            ocr_results = ocr_model.ocr(processed_image, cls=True)
             
             # 解析结果
             return self._parse_ocr_results(ocr_results)
@@ -335,6 +330,7 @@ class OCRProcessor:
             }
 
 
+@st.cache_resource
 def create_ocr_processor() -> OCRProcessor:
-    """创建OCR处理器实例"""
+    """创建OCR处理器实例 - 使用缓存避免重复创建"""
     return OCRProcessor()
