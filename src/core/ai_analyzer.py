@@ -93,10 +93,14 @@ class ZhipuAIClient:
         Returns:
             识别结果字典
         """
+        print(f"[GLM-4V-Flash] 开始识别图像: {image_path}")
+        
         if not self.client:
+            error_msg = '智普AI SDK不可用'
+            print(f"[GLM-4V-Flash] 错误: {error_msg}")
             return {
                 'success': False,
-                'error': '智普AI SDK不可用',
+                'error': error_msg,
                 'raw_text': '',
                 'confidence': 0.0
             }
@@ -112,7 +116,21 @@ class ZhipuAIClient:
 
 请直接返回识别出的英语文字内容，不需要额外的解释。"""
 
-            # 构建消息
+            # 编码图像为base64
+            image_base64 = self._encode_image_to_base64(image_path)
+            if not image_base64:
+                error_msg = f'图像编码失败: {image_path}'
+                print(f"[GLM-4V-Flash] 错误: {error_msg}")
+                return {
+                    'success': False,
+                    'error': error_msg,
+                    'raw_text': '',
+                    'confidence': 0.0
+                }
+
+            print(f"[GLM-4V-Flash] 图像编码完成，长度: {len(image_base64)}")
+
+            # 构建消息 - 按照官方参考代码格式
             messages = [
                 {
                     "role": "user",
@@ -124,26 +142,31 @@ class ZhipuAIClient:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": self._encode_image_to_base64(image_path)
+                                "url": image_base64
                             }
                         }
                     ]
                 }
             ]
             
-            # 调用GLM-4V-Flash API
+            print(f"[GLM-4V-Flash] 调用API，模型: {self.vision_model}")
+            
+            # 调用GLM-4V-Flash API - 按照参考代码格式
             response = self.client.chat.completions.create(
-                model=self.vision_model,
+                model=self.vision_model,  # "glm-4v-flash"
                 messages=messages,
                 top_p=0.7,
-                temperature=0.3,  # 较低的温度确保准确性
-                max_tokens=2048,
-                stream=False
+                temperature=0.95,  # 按照参考代码使用0.95
+                max_tokens=1024,   # 按照参考代码使用1024
+                stream=False       # 确保非流式
             )
+            
+            print(f"[GLM-4V-Flash] API调用完成")
             
             # 解析响应
             if response and response.choices:
                 recognized_text = response.choices[0].message.content.strip()
+                print(f"[GLM-4V-Flash] 识别成功，文本长度: {len(recognized_text)}")
                 
                 return {
                     'success': True,
@@ -157,18 +180,22 @@ class ZhipuAIClient:
                     'vision_model': self.vision_model
                 }
             else:
+                error_msg = '视觉识别返回为空'
+                print(f"[GLM-4V-Flash] 错误: {error_msg}")
                 return {
                     'success': False,
-                    'error': '视觉识别返回为空',
+                    'error': error_msg,
                     'raw_text': '',
                     'confidence': 0.0
                 }
                 
         except Exception as e:
+            error_msg = f'视觉识别失败: {e}'
+            print(f"[GLM-4V-Flash] 异常: {error_msg}")
             logging.error(f"GLM-4V-Flash视觉识别失败: {e}")
             return {
                 'success': False,
-                'error': f'视觉识别失败: {e}',
+                'error': error_msg,
                 'raw_text': '',
                 'confidence': 0.0
             }
