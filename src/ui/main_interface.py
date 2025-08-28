@@ -20,7 +20,7 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.2.9"
+        self.version = "v1.3.0"
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
@@ -335,7 +335,7 @@ class EnglishLearningInterface:
                 # 步骤1: GLM-4V-Flash视觉识别
                 status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {image_path.name}")
                 print(f"[批量处理] 开始处理文件: {image_path.name}")
-                vision_result = self.vision_processor.process_image(str(image_path))
+                vision_result = self.vision_processor.process_image(str(image_path), uploaded_file=None)
                 print(f"[批量处理] 视觉识别完成，成功: {vision_result['success']}")
                 
                 # 调试：显示视觉识别结果
