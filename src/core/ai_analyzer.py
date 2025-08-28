@@ -77,40 +77,53 @@ class ZhipuAIClient:
         try:
             print(f"[GLM-4V-Flash] 准备上传图片到临时URL服务: {image_path}")
             
-            # 使用免费图床服务 - imgbb
-            api_key = "a2c2e4b2b8e9d5f9d5a2e4b2b8e9d5f9"  # 临时API key，实际使用时请申请自己的
-            url = "https://api.imgbb.com/1/upload"
+            # 尝试多个免费图床服务
+            upload_services = [
+                {
+                    'name': 'Telegraph',
+                    'url': 'https://telegra.ph/upload',
+                    'method': 'telegraph'
+                },
+                {
+                    'name': 'ImgBB',
+                    'url': 'https://api.imgbb.com/1/upload', 
+                    'method': 'imgbb'
+                }
+            ]
             
-            with open(image_path, 'rb') as image_file:
-                files = {
-                    'image': image_file
-                }
-                data = {
-                    'key': api_key,
-                    'expiration': 600  # 10分钟过期
-                }
-                
-                print(f"[GLM-4V-Flash] 正在上传图片...")
-                response = requests.post(url, files=files, data=data, timeout=30)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if result.get('success'):
-                        image_url = result['data']['url']
-                        print(f"[GLM-4V-Flash] 图片上传成功: {image_url}")
-                        return image_url
-                    else:
-                        print(f"[GLM-4V-Flash] 图床服务返回失败: {result}")
-                else:
-                    print(f"[GLM-4V-Flash] 图片上传失败: {response.status_code} - {response.text}")
+            for service in upload_services:
+                try:
+                    print(f"[GLM-4V-Flash] 尝试上传到 {service['name']}...")
+                    
+                    if service['method'] == 'telegraph':
+                        # Telegraph 不需要API key
+                        with open(image_path, 'rb') as image_file:
+                            files = {'file': ('image.jpg', image_file, 'image/jpeg')}
+                            response = requests.post(service['url'], files=files, timeout=30)
+                            
+                            if response.status_code == 200:
+                                result = response.json()
+                                if result and len(result) > 0 and 'src' in result[0]:
+                                    image_url = 'https://telegra.ph' + result[0]['src']
+                                    print(f"[GLM-4V-Flash] {service['name']}上传成功: {image_url}")
+                                    return image_url
+                    
+                    elif service['method'] == 'imgbb':
+                        # ImgBB 需要API key，跳过或使用测试key
+                        print(f"[GLM-4V-Flash] 跳过 {service['name']}（需要API key）")
+                        continue
+                        
+                except Exception as e:
+                    print(f"[GLM-4V-Flash] {service['name']}上传失败: {e}")
+                    continue
+            
+            print(f"[GLM-4V-Flash] 所有图床服务都失败")
+            return None
                     
         except Exception as e:
             print(f"[GLM-4V-Flash] 图片上传异常: {e}")
             logging.error(f"图片上传失败: {e}")
-        
-        # 如果上传失败，尝试使用本地文件路径（仅适用于本地图片）
-        print(f"[GLM-4V-Flash] 图片上传失败，尝试直接使用本地路径")
-        return None
+            return None
     
     def recognize_image_text(self, image_path: str, context: str = "英语教材内容") -> Dict:
         """
