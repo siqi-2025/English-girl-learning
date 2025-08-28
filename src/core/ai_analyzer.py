@@ -179,23 +179,49 @@ class ZhipuAIClient:
                 # 获取当前Streamlit服务器地址
                 import streamlit as st
                 
-                # 检测运行环境
+                # 检测运行环境 - 修复localhost问题
                 import os
-                if 'STREAMLIT_SERVER_PORT' in os.environ:
-                    # Streamlit Cloud环境
-                    server_url = f"https://engirl.streamlit.app"  
-                    print(f"[GLM-4V-Flash] 检测到Streamlit Cloud环境")
-                elif hasattr(st.config, 'get_option'):
+                
+                # 检查多个Streamlit Cloud环境变量和请求头
+                is_cloud_env = False
+                
+                # 方法1: 环境变量检测
+                cloud_env_vars = [
+                    'STREAMLIT_SERVER_PORT',
+                    'STREAMLIT_CLOUD', 
+                    'HOSTNAME'
+                ]
+                
+                for var in cloud_env_vars:
+                    if var in os.environ:
+                        val = os.environ[var]
+                        if 'streamlit' in str(val).lower() or 'cloud' in str(val).lower():
+                            is_cloud_env = True
+                            print(f"[GLM-4V-Flash] 通过环境变量 {var}={val} 检测到云环境")
+                            break
+                
+                # 方法2: 通过Streamlit内部上下文检测
+                if not is_cloud_env:
                     try:
-                        server_port = st.config.get_option('server.port') or 8501
-                        server_url = f"http://localhost:{server_port}"
-                        print(f"[GLM-4V-Flash] 本地环境，端口: {server_port}")
+                        # 检查当前请求是否来自外部域名
+                        import streamlit.runtime.scriptrunner as sr
+                        ctx = sr.get_script_run_ctx()
+                        if ctx and hasattr(ctx, 'session_info'):
+                            # 如果能获取到session信息，很可能是云环境
+                            is_cloud_env = True
+                            print(f"[GLM-4V-Flash] 通过Streamlit上下文检测到云环境")
                     except:
-                        server_url = "http://localhost:8501" 
-                        print(f"[GLM-4V-Flash] 默认本地环境")
+                        pass
+                
+                if is_cloud_env:
+                    # Streamlit Cloud环境 - 使用公网地址
+                    server_url = "https://engirl.streamlit.app"
+                    print(f"[GLM-4V-Flash] 检测到Streamlit Cloud环境，使用公网地址")
                 else:
-                    server_url = "http://localhost:8501"
-                    print(f"[GLM-4V-Flash] 备用本地环境设置")
+                    # 本地环境 - 但GLM-4V-Flash无法访问localhost，强制使用GitHub上传
+                    print(f"[GLM-4V-Flash] 本地环境检测，GLM-4V-Flash无法访问localhost")
+                    print(f"[GLM-4V-Flash] 将回退到GitHub图床上传方案")
+                    return None  # 返回None强制使用GitHub上传
                 
                 # 构造文件URL
                 file_url = f"{server_url}/_stcore/uploaded_files/{uploaded_file.file_id}/{uploaded_file.name}"
