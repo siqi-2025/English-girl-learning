@@ -185,7 +185,7 @@ class VisionProcessor:
             print(f"[VisionProcessor] 处理第 {i+1}/{total} 个图像")
             
             # 处理单个图像
-            result = self.process_image(image_input)
+            result = self.process_image(image_input, uploaded_file=None)  # batch模式下没有uploaded_file
             result['index'] = i
             results.append(result)
             
