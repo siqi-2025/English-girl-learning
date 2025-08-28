@@ -423,8 +423,8 @@ class EnglishLearningInterface:
             with col3:
                 st.write(f"**文件类型**: {uploaded_file.type}")
             
-            # 获取并显示图片URL
-            image_url = self._get_uploaded_file_url(uploaded_file)
+            # 保存文件到static目录并获取URL
+            image_url = self._save_file_to_static_and_get_url(uploaded_file)
             if image_url:
                 st.write(f"**🔗 图片URL**: `{image_url}`")
                 st.info(f"💡 此URL可用于AI API调用")
@@ -450,66 +450,86 @@ class EnglishLearningInterface:
         st.info("💡 图片显示完成。AI处理功能已暂时禁用。")
         return {'results': results, 'source': 'upload_display_only'}
     
-    def _get_uploaded_file_url(self, uploaded_file) -> Optional[str]:
-        """获取Streamlit上传文件的真实URL地址"""
+    def _save_file_to_static_and_get_url(self, uploaded_file) -> Optional[str]:
+        """将上传文件保存到static目录并生成可访问URL"""
         try:
-            # 打印所有可用的属性和方法
-            print(f"[URL获取] 检查UploadedFile对象的所有属性:")
-            all_attrs = dir(uploaded_file)
-            for attr in all_attrs:
-                if not attr.startswith('_'):
-                    try:
-                        value = getattr(uploaded_file, attr)
-                        if not callable(value):
-                            print(f"[URL获取]   {attr}: {value}")
-                        else:
-                            print(f"[URL获取]   {attr}: <method>")
-                    except:
-                        print(f"[URL获取]   {attr}: <无法获取>")
+            import os
+            import uuid
+            import time
+            from pathlib import Path
             
-            # 尝试多种方式获取URL
-            possible_url_attrs = ['url', 'file_url', 'media_url', 'path', '_url', '_file_url', '_media_url']
+            # 确保static目录存在
+            project_root = Path(__file__).parent.parent.parent  # 回到项目根目录
+            static_dir = project_root / "static"
+            static_dir.mkdir(exist_ok=True)
             
-            for attr in possible_url_attrs:
-                if hasattr(uploaded_file, attr):
-                    try:
-                        url_value = getattr(uploaded_file, attr)
-                        if url_value and isinstance(url_value, str):
-                            print(f"[URL获取] ✅ 找到URL属性 {attr}: {url_value}")
-                            return url_value
-                    except:
-                        pass
+            print(f"[Static保存] 项目根目录: {project_root}")
+            print(f"[Static保存] Static目录: {static_dir}")
             
-            # 尝试使用Streamlit内部API
-            try:
-                import streamlit.elements.image
-                if hasattr(streamlit.elements.image, 'image_to_url'):
-                    url = streamlit.elements.image.image_to_url(uploaded_file.getvalue())
-                    print(f"[URL获取] ✅ 使用image_to_url获取: {url}")
-                    return url
-            except Exception as e:
-                print(f"[URL获取] image_to_url失败: {e}")
+            # 生成唯一文件名
+            timestamp = int(time.time())
+            file_extension = uploaded_file.name.split('.')[-1] if '.' in uploaded_file.name else 'jpg'
+            unique_id = str(uuid.uuid4())[:8]
+            filename = f"upload_{timestamp}_{unique_id}.{file_extension}"
             
-            # 检查是否有file_id（之前的方法）
-            if hasattr(uploaded_file, 'file_id') and uploaded_file.file_id:
-                print(f"[URL获取] 文件ID: {uploaded_file.file_id}")
-                
-                # 尝试构造标准格式（虽然你说这不对，但作为备用）
-                import streamlit.web.server.server
-                try:
-                    server_url = "https://engirl.streamlit.app"
-                    file_url = f"{server_url}/_stcore/uploaded_files/{uploaded_file.file_id}/{uploaded_file.name}"
-                    print(f"[URL获取] ⚠️ 备用构造URL: {file_url}")
-                    return file_url
-                except:
-                    pass
+            # 完整文件路径
+            file_path = static_dir / filename
             
-            print(f"[URL获取] ❌ 无法获取文件URL")
-            return None
-                
+            # 保存文件
+            with open(file_path, 'wb') as f:
+                f.write(uploaded_file.getvalue())
+            
+            print(f"[Static保存] ✅ 文件已保存: {file_path}")
+            print(f"[Static保存] 文件大小: {os.path.getsize(file_path)} bytes")
+            
+            # 生成URL
+            # 检测运行环境
+            is_cloud = self._detect_cloud_environment()
+            
+            if is_cloud:
+                base_url = "https://engirl.streamlit.app"
+            else:
+                base_url = "http://localhost:8501"  # 本地默认端口
+            
+            # 构造静态文件URL
+            static_url = f"{base_url}/static/{filename}"
+            
+            print(f"[Static保存] ✅ 生成的静态URL: {static_url}")
+            print(f"[Static保存] URL组成:")
+            print(f"  - 基础URL: {base_url}")
+            print(f"  - 静态路径: /static/{filename}")
+            
+            return static_url
+            
         except Exception as e:
-            print(f"[URL获取] ❌ 获取URL异常: {e}")
+            print(f"[Static保存] ❌ 保存文件失败: {e}")
             return None
+    
+    def _detect_cloud_environment(self) -> bool:
+        """检测是否在云环境中运行"""
+        import os
+        
+        # 检查Streamlit Cloud环境变量
+        cloud_indicators = [
+            'STREAMLIT_SHARING_MODE',
+            'STREAMLIT_CLOUD',
+            ('HOSTNAME', lambda x: 'streamlit' in str(x).lower()),
+            ('SERVER_NAME', lambda x: 'streamlit.app' in str(x).lower())
+        ]
+        
+        for indicator in cloud_indicators:
+            if isinstance(indicator, tuple):
+                var_name, check_func = indicator
+                if var_name in os.environ and check_func(os.environ[var_name]):
+                    print(f"[环境检测] 通过 {var_name}={os.environ[var_name]} 检测到云环境")
+                    return True
+            else:
+                if indicator in os.environ:
+                    print(f"[环境检测] 通过 {indicator} 检测到云环境")
+                    return True
+        
+        print(f"[环境检测] 检测到本地环境")
+        return False
     
     def _initialize_processors(self) -> bool:
         """初始化处理器"""
