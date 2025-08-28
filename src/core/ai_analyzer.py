@@ -173,20 +173,20 @@ class ZhipuAIClient:
 
             print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
 
-            # 构建消息 - 使用网络URL格式
+            # 构建消息 - 按照官方文档格式：image_url在前，text在后
             messages = [
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "text",
-                            "text": vision_prompt
-                        },
-                        {
                             "type": "image_url",
                             "image_url": {
                                 "url": image_url
                             }
+                        },
+                        {
+                            "type": "text",
+                            "text": vision_prompt
                         }
                     ]
                 }

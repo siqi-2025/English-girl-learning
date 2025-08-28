@@ -23,7 +23,7 @@ class VisionProcessor:
     def __init__(self):
         print(f"[VisionProcessor] 初始化GLM-4V-Flash视觉处理器")
         self.ai_client = ZhipuAIClient()
-        self.version = "v1.2.3"
+        self.version = "v1.2.4"
         print(f"[VisionProcessor] 版本: {self.version} - 纯AI视觉识别")
     
     def _prepare_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray]) -> str:
