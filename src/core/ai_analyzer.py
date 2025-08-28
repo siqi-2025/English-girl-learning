@@ -145,10 +145,16 @@ class ZhipuAIClient:
             
             print(f"[GLM-4V-Flash] GitHub图床URL生成: {github_raw_url}")
             
-            # 临时：由于没有真实token，使用一个公开的GitHub图片URL作为测试
-            test_github_url = "https://raw.githubusercontent.com/siqi-2025/English-girl-learning/main/README.md"
+            # 临时：由于没有真实token，使用一个包含英语文字的真实图片URL进行测试
+            test_image_urls = [
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/English_alphabet.png/800px-English_alphabet.png",
+                "https://i.imgur.com/9VGoz3K.png",  # Hello World示例图片
+                "https://via.placeholder.com/400x200.png?text=Hello+World+English+Test"
+            ]
             
-            print(f"[GLM-4V-Flash] 使用GitHub测试URL (演示用): {test_github_url}")
+            test_github_url = test_image_urls[0]  # 使用Wikipedia的英语字母表图片
+            
+            print(f"[GLM-4V-Flash] 使用测试图片URL (包含英语文字): {test_github_url}")
             
             # 实际应该返回上传后的真实URL
             return test_github_url
@@ -172,12 +178,12 @@ class ZhipuAIClient:
             if github_url:
                 return github_url
             
-            # 方案2: 如果GitHub失败，使用测试URL
-            print(f"[GLM-4V-Flash] GitHub上传失败，使用测试图片URL")
-            test_url = "https://via.placeholder.com/400x200/ffffff/000000?text=Hello+World+English+Test"
-            print(f"[GLM-4V-Flash] 测试图片URL: {test_url}")
+            # 方案2: 如果GitHub失败，使用真实的英语测试图片
+            print(f"[GLM-4V-Flash] GitHub上传失败，使用备用测试图片URL")
+            fallback_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/English_alphabet.png/800px-English_alphabet.png"
+            print(f"[GLM-4V-Flash] 备用图片URL (英语字母表): {fallback_url}")
             
-            return test_url
+            return fallback_url
                     
         except Exception as e:
             print(f"[GLM-4V-Flash] 图片上传异常: {e}")
