@@ -169,34 +169,50 @@ class ZhipuAIClient:
     def _get_streamlit_file_url(self, uploaded_file) -> Optional[str]:
         """获取Streamlit文件的可访问URL"""
         try:
-            print(f"[GLM-4V-Flash] 构造Streamlit文件URL")
+            print(f"[GLM-4V-Flash] 开始构造Streamlit文件URL")
+            print(f"[GLM-4V-Flash] 文件信息 - 名称: {uploaded_file.name}, 类型: {uploaded_file.type}, 大小: {uploaded_file.size}")
             
             # Streamlit文件访问格式: /_stcore/uploaded_files/{file_id}/{filename}
             if hasattr(uploaded_file, 'file_id') and uploaded_file.file_id:
+                print(f"[GLM-4V-Flash] 文件ID: {uploaded_file.file_id}")
+                
                 # 获取当前Streamlit服务器地址
                 import streamlit as st
                 
-                # 尝试从环境或配置获取服务器地址
-                server_url = "http://localhost:8505"  # 本地开发默认
-                
-                # 如果是Streamlit Cloud部署环境
-                if hasattr(st.config, 'get_option'):
+                # 检测运行环境
+                import os
+                if 'STREAMLIT_SERVER_PORT' in os.environ:
+                    # Streamlit Cloud环境
+                    server_url = f"https://engirl.streamlit.app"  
+                    print(f"[GLM-4V-Flash] 检测到Streamlit Cloud环境")
+                elif hasattr(st.config, 'get_option'):
                     try:
                         server_port = st.config.get_option('server.port') or 8501
                         server_url = f"http://localhost:{server_port}"
+                        print(f"[GLM-4V-Flash] 本地环境，端口: {server_port}")
                     except:
-                        pass
+                        server_url = "http://localhost:8501" 
+                        print(f"[GLM-4V-Flash] 默认本地环境")
+                else:
+                    server_url = "http://localhost:8501"
+                    print(f"[GLM-4V-Flash] 备用本地环境设置")
                 
                 # 构造文件URL
                 file_url = f"{server_url}/_stcore/uploaded_files/{uploaded_file.file_id}/{uploaded_file.name}"
-                print(f"[GLM-4V-Flash] 构造的文件URL: {file_url}")
+                
+                print(f"[GLM-4V-Flash] ✅ 构造的完整文件URL: {file_url}")
+                print(f"[GLM-4V-Flash] URL组成部分:")
+                print(f"  - 服务器地址: {server_url}")
+                print(f"  - 文件ID: {uploaded_file.file_id}")
+                print(f"  - 文件名: {uploaded_file.name}")
+                
                 return file_url
             
-            print(f"[GLM-4V-Flash] uploaded_file没有file_id属性")
+            print(f"[GLM-4V-Flash] ❌ uploaded_file没有file_id属性")
             return None
                     
         except Exception as e:
-            print(f"[GLM-4V-Flash] 构造文件URL异常: {e}")
+            print(f"[GLM-4V-Flash] ❌ 构造文件URL异常: {e}")
             logging.error(f"构造文件URL失败: {e}")
             return None
     
@@ -236,25 +252,49 @@ class ZhipuAIClient:
 
             # 获取图像URL - 优先使用Streamlit上传文件URL
             image_url = None
+            print(f"[GLM-4V-Flash] 开始获取图像URL，uploaded_file存在: {uploaded_file is not None}")
+            
             if uploaded_file:
+                print(f"[GLM-4V-Flash] 尝试使用Streamlit上传文件构造URL...")
                 # 如果有Streamlit上传文件，直接构造URL
                 image_url = self._get_streamlit_file_url(uploaded_file)
-                print(f"[GLM-4V-Flash] 使用Streamlit文件URL: {image_url}")
+                if image_url:
+                    print(f"[GLM-4V-Flash] ✅ 成功使用Streamlit文件URL: {image_url}")
+                else:
+                    print(f"[GLM-4V-Flash] ❌ Streamlit文件URL构造失败")
             
             if not image_url:
                 # 如果没有Streamlit文件或构造失败，回退到GitHub上传
                 print(f"[GLM-4V-Flash] 回退到GitHub上传方案")
                 image_url = self._upload_image_to_github(image_input)
+                if image_url:
+                    print(f"[GLM-4V-Flash] ✅ GitHub上传成功: {image_url}")
+                else:
+                    print(f"[GLM-4V-Flash] ❌ GitHub上传也失败")
             
             if not image_url:
                 error_msg = f'无法获取图像URL: {image_input}'
-                print(f"[GLM-4V-Flash] 错误: {error_msg}")
+                print(f"[GLM-4V-Flash] ❌ 最终错误: {error_msg}")
                 return {
                     'success': False,
                     'error': error_msg,
                     'raw_text': '',
                     'confidence': 0.0
                 }
+            
+            # 测试URL可访问性
+            print(f"[GLM-4V-Flash] 测试URL可访问性...")
+            try:
+                import requests
+                response = requests.head(image_url, timeout=10)
+                print(f"[GLM-4V-Flash] URL测试结果: HTTP {response.status_code}")
+                if response.status_code != 200:
+                    print(f"[GLM-4V-Flash] ⚠️ 警告: URL返回非200状态码")
+                else:
+                    print(f"[GLM-4V-Flash] ✅ URL可访问")
+            except Exception as e:
+                print(f"[GLM-4V-Flash] ⚠️ URL测试异常: {e}")
+                print(f"[GLM-4V-Flash] 继续尝试API调用...")
 
             print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
 

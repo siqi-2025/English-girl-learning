@@ -87,7 +87,7 @@ class VisionProcessor:
             print(f"[VisionProcessor] 图像准备失败: {e}")
             raise e
     
-    def process_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray]) -> Dict:
+    def process_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray], uploaded_file=None) -> Dict:
         """
         使用GLM-4V-Flash处理图像并进行文字识别
         
@@ -111,8 +111,8 @@ class VisionProcessor:
             
             print(f"[VisionProcessor] 调用GLM-4V-Flash进行视觉识别")
             
-            # 使用GLM-4V-Flash进行视觉识别
-            vision_result = self.ai_client.recognize_image_text(image_path, "英语教材内容")
+            # 使用GLM-4V-Flash进行视觉识别，传递uploaded_file参数
+            vision_result = self.ai_client.recognize_image_text(image_path, "英语教材内容", uploaded_file=uploaded_file)
             
             print(f"[VisionProcessor] GLM-4V-Flash处理完成，成功: {vision_result['success']}")
             
