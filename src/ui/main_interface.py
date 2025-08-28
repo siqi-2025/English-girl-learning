@@ -1,0 +1,590 @@
+"""
+主界面模块
+
+英语学习助手的Streamlit主界面
+"""
+
+import streamlit as st
+import os
+from pathlib import Path
+from typing import List, Dict, Optional
+import time
+
+from ..core.ocr_processor import create_ocr_processor
+from ..core.ai_analyzer import create_ai_enhanced_ocr, test_ai_connection
+from ..core.document_generator import DocumentGenerator
+from ..utils.config import config
+
+
+class EnglishLearningInterface:
+    """英语学习助手主界面"""
+    
+    def __init__(self):
+        self.ocr_processor = None
+        self.ai_ocr = None
+        self.doc_generator = None
+        
+    def setup_page_config(self):
+        """设置页面配置"""
+        st.set_page_config(
+            page_title="英语学习助手 - AI增强OCR系统",
+            page_icon="📚",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+        
+        # 自定义CSS样式
+        st.markdown("""
+        <style>
+        .main-header {
+            color: #1f77b4;
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+        }
+        .feature-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+            background-color: #f8f9fa;
+        }
+        .success-message {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            margin: 1rem 0;
+        }
+        .warning-message {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            margin: 1rem 0;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    
+    def render_header(self):
+        """渲染页面头部"""
+        st.markdown('<h1 class="main-header">📚 英语学习助手</h1>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666;">AI增强OCR系统 + 智能文档生成</p>', unsafe_allow_html=True)
+        
+        # 系统状态检查
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if test_ai_connection():
+                st.success("🤖 AI服务连接正常")
+            else:
+                st.error("❌ AI服务连接失败")
+                
+        with col2:
+            try:
+                from paddleocr import PaddleOCR
+                st.success("🔍 OCR引擎就绪")
+            except ImportError:
+                st.error("❌ OCR引擎未安装")
+                
+        with col3:
+            api_key = config.get_api_key()
+            if api_key:
+                st.success("🔑 API密钥已配置")
+            else:
+                st.warning("⚠️ 请配置API密钥")
+    
+    def render_sidebar(self):
+        """渲染侧边栏"""
+        with st.sidebar:
+            st.markdown("### ⚙️ 系统配置")
+            
+            # API密钥配置
+            st.markdown("#### 🔑 API设置")
+            current_key = config.get_api_key()
+            key_status = "✅ 已配置" if current_key else "❌ 未配置"
+            st.info(f"当前状态: {key_status}")
+            
+            if st.button("🔄 重新加载配置"):
+                st.experimental_rerun()
+            
+            st.markdown("---")
+            
+            # OCR设置
+            st.markdown("#### 🔍 OCR设置")
+            enhance_image = st.checkbox("启用图像增强", value=True)
+            use_gpu = st.checkbox("使用GPU加速", value=False)
+            
+            # AI设置
+            st.markdown("#### 🤖 AI设置")
+            temperature = st.slider("生成温度", 0.1, 1.0, 0.7, 0.1)
+            max_tokens = st.slider("最大生成长度", 500, 4000, 2000, 100)
+            
+            st.markdown("---")
+            st.markdown("### 📊 使用统计")
+            
+            # 初始化session state
+            if 'processed_count' not in st.session_state:
+                st.session_state.processed_count = 0
+            if 'generated_docs' not in st.session_state:
+                st.session_state.generated_docs = 0
+                
+            st.metric("处理图片数", st.session_state.processed_count)
+            st.metric("生成文档数", st.session_state.generated_docs)
+            
+            return {
+                'enhance_image': enhance_image,
+                'use_gpu': use_gpu,
+                'temperature': temperature,
+                'max_tokens': max_tokens
+            }
+    
+    def render_image_upload_section(self, settings: Dict):
+        """渲染图像上传区域"""
+        st.markdown("### 📷 图像处理")
+        
+        # 选择输入方式
+        input_method = st.radio(
+            "选择输入方式：",
+            ["上传图片文件", "批量处理文件夹"],
+            horizontal=True
+        )
+        
+        if input_method == "上传图片文件":
+            uploaded_files = st.file_uploader(
+                "选择英语教材图片",
+                type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
+                accept_multiple_files=True,
+                help="支持多种图片格式，可同时上传多个文件"
+            )
+            
+            if uploaded_files:
+                return self._process_uploaded_files(uploaded_files, settings)
+                
+        else:
+            folder_path = st.text_input(
+                "输入图片文件夹路径",
+                value=r"D:\360MoveData\Users\wukon\Pictures\7上英语",
+                help="输入包含英语教材图片的文件夹完整路径"
+            )
+            
+            if st.button("🔍 扫描文件夹"):
+                if os.path.exists(folder_path):
+                    return self._process_folder(folder_path, settings)
+                else:
+                    st.error("文件夹路径不存在，请检查路径是否正确")
+        
+        return None
+    
+    def _process_uploaded_files(self, uploaded_files: List, settings: Dict) -> Optional[Dict]:
+        """处理上传的文件"""
+        if not uploaded_files:
+            return None
+            
+        st.info(f"已上传 {len(uploaded_files)} 个文件")
+        
+        if st.button("🚀 开始处理", type="primary"):
+            # 初始化处理器
+            if not self._initialize_processors():
+                return None
+                
+            results = []
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, uploaded_file in enumerate(uploaded_files):
+                status_text.text(f"正在处理: {uploaded_file.name}")
+                
+                try:
+                    # OCR处理
+                    ocr_result = self.ocr_processor.process_image(
+                        uploaded_file.getvalue(), 
+                        enhance=settings['enhance_image']
+                    )
+                    
+                    # AI增强处理
+                    if ocr_result['success']:
+                        enhanced_result = self.ai_ocr.process_image_with_ai(
+                            ocr_result, f"英语教材 - {uploaded_file.name}"
+                        )
+                        enhanced_result['filename'] = uploaded_file.name
+                        results.append(enhanced_result)
+                        st.session_state.processed_count += 1
+                    
+                except Exception as e:
+                    st.error(f"处理 {uploaded_file.name} 时出错: {e}")
+                
+                progress_bar.progress((i + 1) / len(uploaded_files))
+            
+            status_text.text("✅ 处理完成！")
+            return {'results': results, 'source': 'upload'}
+        
+        return None
+    
+    def _process_folder(self, folder_path: str, settings: Dict) -> Optional[Dict]:
+        """处理文件夹中的图片"""
+        try:
+            # 扫描图片文件
+            image_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff']
+            image_files = []
+            
+            for ext in image_extensions:
+                image_files.extend(Path(folder_path).glob(f"*{ext}"))
+                image_files.extend(Path(folder_path).glob(f"*{ext.upper()}"))
+            
+            if not image_files:
+                st.warning("未找到图片文件")
+                return None
+            
+            st.success(f"找到 {len(image_files)} 个图片文件")
+            
+            # 显示文件列表预览
+            with st.expander("📁 文件列表预览"):
+                for file_path in image_files[:10]:  # 只显示前10个
+                    st.text(file_path.name)
+                if len(image_files) > 10:
+                    st.text(f"... 还有 {len(image_files) - 10} 个文件")
+            
+            if st.button("🚀 开始批量处理", type="primary"):
+                return self._batch_process_images(image_files, settings)
+                
+        except Exception as e:
+            st.error(f"扫描文件夹失败: {e}")
+        
+        return None
+    
+    def _batch_process_images(self, image_files: List[Path], settings: Dict) -> Optional[Dict]:
+        """批量处理图片"""
+        if not self._initialize_processors():
+            return None
+        
+        results = []
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # 创建处理结果表格
+        result_container = st.container()
+        
+        for i, image_path in enumerate(image_files):
+            status_text.text(f"正在处理: {image_path.name} ({i+1}/{len(image_files)})")
+            
+            try:
+                # OCR处理
+                ocr_result = self.ocr_processor.process_image(
+                    str(image_path),
+                    enhance=settings['enhance_image']
+                )
+                
+                # AI增强处理
+                if ocr_result['success']:
+                    enhanced_result = self.ai_ocr.process_image_with_ai(
+                        ocr_result, f"英语教材 - {image_path.name}"
+                    )
+                    enhanced_result['filename'] = image_path.name
+                    enhanced_result['filepath'] = str(image_path)
+                    results.append(enhanced_result)
+                    st.session_state.processed_count += 1
+                    
+                    # 实时显示处理结果
+                    with result_container:
+                        if len(results) == 1:
+                            st.markdown("### 📊 处理结果")
+                        
+                        col1, col2, col3 = st.columns([2, 1, 1])
+                        with col1:
+                            st.text(f"✅ {image_path.name}")
+                        with col2:
+                            st.text(f"置信度: {enhanced_result.get('confidence', 0):.2f}")
+                        with col3:
+                            analysis = enhanced_result.get('analysis', {})
+                            st.text(f"类型: {analysis.get('content_type', '未知')}")
+                
+            except Exception as e:
+                st.error(f"处理 {image_path.name} 失败: {e}")
+                
+            progress_bar.progress((i + 1) / len(image_files))
+        
+        status_text.text("✅ 批量处理完成！")
+        return {'results': results, 'source': 'folder'}
+    
+    def _initialize_processors(self) -> bool:
+        """初始化处理器"""
+        try:
+            if self.ocr_processor is None:
+                with st.spinner("初始化OCR引擎..."):
+                    self.ocr_processor = create_ocr_processor()
+            
+            if self.ai_ocr is None:
+                with st.spinner("初始化AI引擎..."):
+                    self.ai_ocr = create_ai_enhanced_ocr()
+            
+            if self.doc_generator is None:
+                self.doc_generator = DocumentGenerator()
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"初始化处理器失败: {e}")
+            return False
+    
+    def render_results_section(self, processing_results: Dict):
+        """渲染处理结果区域"""
+        if not processing_results or not processing_results.get('results'):
+            return
+        
+        results = processing_results['results']
+        st.markdown("### 📋 处理结果详情")
+        
+        # 统计信息
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("总文件数", len(results))
+        with col2:
+            successful = sum(1 for r in results if r.get('success'))
+            st.metric("成功处理", successful)
+        with col3:
+            avg_confidence = sum(r.get('confidence', 0) for r in results) / len(results)
+            st.metric("平均置信度", f"{avg_confidence:.2f}")
+        with col4:
+            total_text = sum(len(r.get('corrected_text', '')) for r in results)
+            st.metric("总文本长度", f"{total_text:,}")
+        
+        # 结果展示选项
+        view_mode = st.radio(
+            "结果显示模式：",
+            ["概览模式", "详细模式", "文档生成"],
+            horizontal=True
+        )
+        
+        if view_mode == "概览模式":
+            self._render_overview_mode(results)
+        elif view_mode == "详细模式":
+            self._render_detailed_mode(results)
+        else:
+            self._render_document_generation(results)
+    
+    def _render_overview_mode(self, results: List[Dict]):
+        """渲染概览模式"""
+        for i, result in enumerate(results):
+            with st.expander(f"📄 {result.get('filename', f'文件{i+1}')}"):
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.markdown("**识别文本预览：**")
+                    text = result.get('corrected_text', '')
+                    preview = text[:200] + "..." if len(text) > 200 else text
+                    st.text_area("", preview, height=100, disabled=True)
+                
+                with col2:
+                    st.markdown("**分析信息：**")
+                    analysis = result.get('analysis', {})
+                    st.write(f"- 标题: {analysis.get('title', '未知')}")
+                    st.write(f"- 类型: {analysis.get('content_type', '未知')}")
+                    st.write(f"- 单元: {analysis.get('unit', '未知')}")
+                    
+                    vocab_count = len(analysis.get('vocabulary', []))
+                    grammar_count = len(analysis.get('grammar_points', []))
+                    st.write(f"- 词汇数: {vocab_count}")
+                    st.write(f"- 语法点: {grammar_count}")
+    
+    def _render_detailed_mode(self, results: List[Dict]):
+        """渲染详细模式"""
+        selected_file = st.selectbox(
+            "选择要查看的文件：",
+            range(len(results)),
+            format_func=lambda x: results[x].get('filename', f'文件{x+1}')
+        )
+        
+        result = results[selected_file]
+        
+        # 基本信息
+        st.markdown("#### 📊 基本信息")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("置信度", f"{result.get('confidence', 0):.2%}")
+        with col2:
+            st.metric("修正数量", len(result.get('corrections', [])))
+        with col3:
+            analysis = result.get('analysis', {})
+            st.metric("词汇数量", len(analysis.get('vocabulary', [])))
+        
+        # 文本对比
+        st.markdown("#### 📝 文本内容")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**原始OCR文本：**")
+            st.text_area("", result.get('raw_ocr', ''), height=200, disabled=True)
+        
+        with col2:
+            st.markdown("**AI校正文本：**")
+            st.text_area("", result.get('corrected_text', ''), height=200, disabled=True)
+        
+        # 修正详情
+        corrections = result.get('corrections', [])
+        if corrections:
+            st.markdown("#### 🔍 修正详情")
+            for correction in corrections:
+                st.markdown(f"- `{correction.get('original', '')}` → `{correction.get('corrected', '')}` ({correction.get('reason', '')})")
+        
+        # 分析结果
+        analysis = result.get('analysis', {})
+        if analysis:
+            st.markdown("#### 🧠 AI分析结果")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**词汇列表：**")
+                vocabulary = analysis.get('vocabulary', [])
+                for vocab in vocabulary:
+                    st.markdown(f"- **{vocab.get('word', '')}**: {vocab.get('meaning', '')} ({vocab.get('level', '')})")
+            
+            with col2:
+                st.markdown("**语法点：**")
+                grammar_points = analysis.get('grammar_points', [])
+                for point in grammar_points:
+                    st.markdown(f"- {point}")
+    
+    def _render_document_generation(self, results: List[Dict]):
+        """渲染文档生成模式"""
+        st.markdown("#### 📚 文档生成设置")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            output_dir = st.text_input(
+                "输出目录",
+                value="./output",
+                help="生成文档的保存目录"
+            )
+        
+        with col2:
+            doc_format = st.selectbox(
+                "文档格式",
+                ["markdown", "html", "pdf"],
+                help="选择生成文档的格式"
+            )
+        
+        # 生成选项
+        st.markdown("**生成内容选择：**")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            gen_lessons = st.checkbox("课文文档", value=True)
+        with col2:
+            gen_vocab = st.checkbox("词汇表", value=True)
+        with col3:
+            gen_exercises = st.checkbox("练习题", value=True)
+        with col4:
+            gen_index = st.checkbox("索引目录", value=True)
+        
+        if st.button("🎯 生成文档", type="primary"):
+            if not self.doc_generator:
+                self.doc_generator = DocumentGenerator()
+            
+            try:
+                with st.spinner("正在生成文档..."):
+                    # 组织数据
+                    lessons = []
+                    vocabulary = []
+                    
+                    for result in results:
+                        analysis = result.get('analysis', {})
+                        
+                        # 课文数据
+                        lesson_data = {
+                            'unit': analysis.get('unit'),
+                            'title': analysis.get('title', result.get('filename', '')),
+                            'content_type': analysis.get('content_type'),
+                            'content': result.get('corrected_text', ''),
+                            'vocabulary': analysis.get('vocabulary', []),
+                            'grammar_points': analysis.get('grammar_points', [])
+                        }
+                        lessons.append(lesson_data)
+                        
+                        # 词汇数据
+                        vocab_list = analysis.get('vocabulary', [])
+                        for vocab in vocab_list:
+                            vocab['unit'] = analysis.get('unit')
+                            vocabulary.append(vocab)
+                    
+                    # 生成文档
+                    generated_files = []
+                    
+                    if gen_lessons:
+                        lesson_file = self.doc_generator.generate_lesson_document(
+                            lessons, output_dir, doc_format
+                        )
+                        if lesson_file:
+                            generated_files.append(lesson_file)
+                    
+                    if gen_vocab:
+                        vocab_file = self.doc_generator.generate_vocabulary_document(
+                            vocabulary, output_dir, doc_format
+                        )
+                        if vocab_file:
+                            generated_files.append(vocab_file)
+                    
+                    if gen_exercises:
+                        # 生成练习题需要AI
+                        exercises_data = []
+                        for lesson in lessons:
+                            exercises = self.ai_ocr.analyzer.generate_exercises(
+                                lesson['content'], lesson['vocabulary']
+                            )
+                            exercises_data.append({
+                                'unit': lesson['unit'],
+                                'title': lesson['title'],
+                                'exercises': exercises
+                            })
+                        
+                        exercise_file = self.doc_generator.generate_exercise_document(
+                            exercises_data, output_dir, doc_format
+                        )
+                        if exercise_file:
+                            generated_files.append(exercise_file)
+                    
+                    if gen_index and generated_files:
+                        index_file = self.doc_generator.generate_index_document(
+                            generated_files, output_dir, doc_format
+                        )
+                        if index_file:
+                            generated_files.append(index_file)
+                    
+                    # 显示结果
+                    st.success(f"✅ 成功生成 {len(generated_files)} 个文档！")
+                    st.session_state.generated_docs += len(generated_files)
+                    
+                    for file_path in generated_files:
+                        st.markdown(f"- 📄 {file_path}")
+                
+            except Exception as e:
+                st.error(f"文档生成失败: {e}")
+    
+    def run(self):
+        """运行主界面"""
+        self.setup_page_config()
+        self.render_header()
+        
+        # 渲染侧边栏
+        settings = self.render_sidebar()
+        
+        # 主要内容区域
+        processing_results = self.render_image_upload_section(settings)
+        
+        if processing_results:
+            self.render_results_section(processing_results)
+        
+        # 页脚
+        st.markdown("---")
+        st.markdown(
+            '<p style="text-align: center; color: #666; font-size: 0.8rem;">'
+            '🤖 AI增强OCR系统 | 基于PaddleOCR 3.1 + 智普AI GLM-4.5-flash'
+            '</p>',
+            unsafe_allow_html=True
+        )
+
+
+def create_main_interface() -> EnglishLearningInterface:
+    """创建主界面实例"""
+    return EnglishLearningInterface()

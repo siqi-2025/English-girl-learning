@@ -1,0 +1,23 @@
+[global]
+developmentMode = false
+
+[server]
+headless = true
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
+runOnSave = false
+allowRunOnSave = false
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
+
+[theme]
+primaryColor = "#1f77b4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+
+[client]
+showErrorDetails = false

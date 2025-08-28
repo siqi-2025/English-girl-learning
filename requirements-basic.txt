@@ -1,0 +1,6 @@
+# 基础依赖 - 用于测试基本功能
+streamlit>=1.28.0
+requests>=2.25.0
+pillow>=8.0.0
+numpy>=1.21.0
+opencv-python>=4.5.0

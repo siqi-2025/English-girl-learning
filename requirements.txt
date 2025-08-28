@@ -1,0 +1,24 @@
+# Web框架
+streamlit==1.28.1
+
+# AI增强OCR核心依赖
+paddlepaddle-cpu==2.5.2
+paddleocr==3.1.0
+
+# 图像处理
+opencv-python-headless==4.8.1.78
+pillow==10.0.1
+numpy==1.24.4
+
+# 网络和API
+requests==2.31.0
+
+# 配置和文档
+pyyaml==6.0.1
+markdown==3.5.1
+python-docx==0.8.11
+
+# 开发和测试
+pytest==7.4.3
+black==23.9.1
+flake8==6.1.0

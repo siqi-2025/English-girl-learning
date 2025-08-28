@@ -145,6 +145,7 @@ cython_debug/
 # Streamlit
 .streamlit/secrets.toml
 .streamlit/*.toml.bak
+.streamlit/credentials.toml
 
 # Project specific
 output/
