@@ -20,7 +20,7 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.2.8"
+        self.version = "v1.2.9"
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
@@ -185,7 +185,13 @@ class EnglishLearningInterface:
         st.info(f"已上传 {len(uploaded_files)} 个文件")
         
         if st.button("🚀 开始处理", type="primary"):
-            print(f"[处理] 用户点击开始处理按钮")
+            print(f"\n{'='*80}")
+            print(f"[主流程] 🚀 用户点击开始处理按钮")
+            print(f"[主流程] 系统版本: {self.version}")
+            print(f"[主流程] 待处理文件数量: {len(uploaded_files)}")
+            print(f"[主流程] 当前时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"{'='*80}")
+            st.write("**🔄 开始处理，查看控制台获取详细日志...**")
             
             # 初始化处理器
             if not self._initialize_processors():
@@ -208,9 +214,21 @@ class EnglishLearningInterface:
                     
                     # 步骤1: GLM-4V-Flash视觉识别
                     status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {uploaded_file.name}")
-                    print(f"[处理] 开始处理上传文件: {uploaded_file.name}")
-                    vision_result = self.vision_processor.process_image(uploaded_file.getvalue())
-                    print(f"[处理] 视觉识别完成，成功: {vision_result['success']}")
+                    print(f"\n[第{i+1}步] ==================== 开始处理文件 ====================")
+                    print(f"[第{i+1}步] 📁 文件名: {uploaded_file.name}")
+                    print(f"[第{i+1}步] 📊 文件大小: {uploaded_file.size} bytes")
+                    print(f"[第{i+1}步] 🎯 文件类型: {uploaded_file.type}")
+                    print(f"[第{i+1}步] 🔄 调用VisionProcessor.process_image()...")
+                    
+                    vision_result = self.vision_processor.process_image(uploaded_file.getvalue(), uploaded_file=uploaded_file)
+                    
+                    print(f"[第{i+1}步] ✅ GLM-4V-Flash处理完成")
+                    print(f"[第{i+1}步] 🎯 识别成功: {vision_result['success']}")
+                    if vision_result['success']:
+                        print(f"[第{i+1}步] 📝 识别文本长度: {len(vision_result.get('raw_text', ''))} 字符")
+                        print(f"[第{i+1}步] 🎯 置信度: {vision_result.get('confidence', 0)}")
+                    else:
+                        print(f"[第{i+1}步] ❌ 识别失败原因: {vision_result.get('error', '未知错误')}")
                     
                     # 调试：显示视觉识别结果
                     st.write("**调试信息 - GLM-4V-Flash识别结果：**")

@@ -206,6 +206,14 @@ class ZhipuAIClient:
                 print(f"  - 文件ID: {uploaded_file.file_id}")
                 print(f"  - 文件名: {uploaded_file.name}")
                 
+                # 同时在Streamlit界面显示URL信息
+                import streamlit as st
+                st.write(f"**🔗 构造的文件URL**: `{file_url}`")
+                st.write(f"**📊 URL组成部分**:")
+                st.write(f"- 服务器地址: `{server_url}`")
+                st.write(f"- 文件ID: `{uploaded_file.file_id}`") 
+                st.write(f"- 文件名: `{uploaded_file.name}`")
+                
                 return file_url
             
             print(f"[GLM-4V-Flash] ❌ uploaded_file没有file_id属性")
@@ -284,16 +292,24 @@ class ZhipuAIClient:
             
             # 测试URL可访问性
             print(f"[GLM-4V-Flash] 测试URL可访问性...")
+            import streamlit as st
+            st.write(f"**🧪 测试URL可访问性**: `{image_url}`")
+            
             try:
                 import requests
                 response = requests.head(image_url, timeout=10)
                 print(f"[GLM-4V-Flash] URL测试结果: HTTP {response.status_code}")
-                if response.status_code != 200:
-                    print(f"[GLM-4V-Flash] ⚠️ 警告: URL返回非200状态码")
-                else:
+                
+                if response.status_code == 200:
                     print(f"[GLM-4V-Flash] ✅ URL可访问")
+                    st.success(f"✅ URL测试成功: HTTP {response.status_code}")
+                else:
+                    print(f"[GLM-4V-Flash] ⚠️ 警告: URL返回非200状态码")
+                    st.warning(f"⚠️ URL测试警告: HTTP {response.status_code}")
+                    
             except Exception as e:
                 print(f"[GLM-4V-Flash] ⚠️ URL测试异常: {e}")
+                st.error(f"❌ URL测试失败: {e}")
                 print(f"[GLM-4V-Flash] 继续尝试API调用...")
 
             print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
