@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import time
 
-from ..core.ocr_processor import create_ocr_processor
+from ..core.vision_processor import create_vision_processor
 from ..core.ai_analyzer import create_ai_enhanced_ocr, test_ai_connection
 from ..core.document_generator import DocumentGenerator
 from ..utils.config import config
@@ -20,9 +20,11 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.ocr_processor = None
-        self.ai_ocr = None
+        self.version = "v1.2.0"
+        self.vision_processor = None
+        self.ai_analyzer = None
         self.doc_generator = None
+        print(f"[EnglishLearningInterface] 初始化界面 {self.version}")
         
     def setup_page_config(self):
         """设置页面配置"""
@@ -70,8 +72,10 @@ class EnglishLearningInterface:
     
     def render_header(self):
         """渲染页面头部"""
-        st.markdown('<h1 class="main-header">📚 英语学习助手</h1>', unsafe_allow_html=True)
-        st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666;">AI增强OCR系统 + 智能文档生成</p>', unsafe_allow_html=True)
+        st.markdown(f'<h1 class="main-header">📚 英语学习助手 {self.version}</h1>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666;">纯AI视觉识别系统 + 智能文档生成</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="text-align: center; font-size: 0.9rem; color: #888;">版本: {self.version} | 基于GLM-4V-Flash纯视觉识别</p>', unsafe_allow_html=True)
+        print(f"[UI] 渲染头部，版本: {self.version}")
         
         # 系统状态检查
         col1, col2, col3 = st.columns(3)
@@ -83,11 +87,8 @@ class EnglishLearningInterface:
                 st.error("❌ AI服务连接失败")
                 
         with col2:
-            try:
-                from paddleocr import PaddleOCR
-                st.success("🔍 OCR引擎就绪")
-            except ImportError:
-                st.error("❌ OCR引擎未安装")
+            st.success("👁️ GLM-4V-Flash视觉识别就绪")
+            print("[UI] GLM-4V-Flash视觉识别模块状态: 就绪")
                 
         with col3:
             api_key = config.get_api_key()
@@ -112,10 +113,10 @@ class EnglishLearningInterface:
             
             st.markdown("---")
             
-            # OCR设置
-            st.markdown("#### 🔍 OCR设置")
-            enhance_image = st.checkbox("启用图像增强", value=True)
-            use_gpu = st.checkbox("使用GPU加速", value=False)
+            # 视觉识别设置
+            st.markdown("#### 👁️ 视觉识别设置")
+            st.info("使用GLM-4V-Flash进行图像识别")
+            print("[UI] 显示视觉识别设置面板")
             
             # AI设置
             st.markdown("#### 🤖 AI设置")
@@ -135,8 +136,6 @@ class EnglishLearningInterface:
             st.metric("生成文档数", st.session_state.generated_docs)
             
             return {
-                'enhance_image': enhance_image,
-                'use_gpu': use_gpu,
                 'temperature': temperature,
                 'max_tokens': max_tokens
             }
@@ -200,23 +199,23 @@ class EnglishLearningInterface:
                 try:
                     # 步骤1: GLM-4V-Flash视觉识别
                     status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {uploaded_file.name}")
-                    ocr_result = self.ocr_processor.process_image(
-                        uploaded_file.getvalue(), 
-                        enhance=settings['enhance_image']
-                    )
+                    print(f"[处理] 开始处理上传文件: {uploaded_file.name}")
+                    vision_result = self.vision_processor.process_image(uploaded_file.getvalue())
+                    print(f"[处理] 视觉识别完成，成功: {vision_result['success']}")
                     
-                    # 调试：显示OCR结果
-                    st.write("**调试信息 - OCR结果：**")
-                    st.json(ocr_result)
+                    # 调试：显示视觉识别结果
+                    st.write("**调试信息 - GLM-4V-Flash识别结果：**")
+                    st.json(vision_result)
                     
                     # 步骤2: AI增强处理
-                    if ocr_result['success']:
+                    if vision_result['success']:
                         status_text.text(f"🤖 步骤2: AI分析和增强 - {uploaded_file.name}")
-                        st.info(f"识别到的文本长度: {len(ocr_result.get('raw_text', ''))}")
+                        st.info(f"识别到的文本长度: {len(vision_result.get('raw_text', ''))}")
+                        print(f"[处理] 开始AI分析，文本长度: {len(vision_result.get('raw_text', ''))}")
                         
                         try:
-                            enhanced_result = self.ai_ocr.process_image_with_ai(
-                                ocr_result, f"英语教材 - {uploaded_file.name}"
+                            enhanced_result = self.ai_analyzer.process_image_with_ai(
+                                vision_result, f"英语教材 - {uploaded_file.name}"
                             )
                             # 调试：显示AI增强结果
                             st.write("**调试信息 - AI增强结果：**")
@@ -226,19 +225,21 @@ class EnglishLearningInterface:
                             results.append(enhanced_result)
                             st.session_state.processed_count += 1
                         except Exception as ai_error:
+                            print(f"[处理] AI分析失败: {ai_error}")
                             st.error(f"AI处理失败: {ai_error}")
                             # 创建基本的错误结果
                             enhanced_result = {
                                 'success': False,
                                 'error': str(ai_error),
-                                'raw_text': ocr_result.get('raw_text', ''),
-                                'confidence': ocr_result.get('confidence', 0),
+                                'raw_text': vision_result.get('raw_text', ''),
+                                'confidence': vision_result.get('confidence', 0),
                                 'analysis': {}
                             }
                             enhanced_result['filename'] = uploaded_file.name
                             results.append(enhanced_result)
                     else:
-                        st.error(f"OCR识别失败: {ocr_result.get('error', '未知错误')}")
+                        print(f"[处理] 视觉识别失败: {vision_result.get('error', '未知错误')}")
+                        st.error(f"视觉识别失败: {vision_result.get('error', '未知错误')}")
                         continue
                     
                 except Exception as e:
@@ -302,39 +303,41 @@ class EnglishLearningInterface:
             try:
                 # 步骤1: GLM-4V-Flash视觉识别
                 status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {image_path.name}")
-                ocr_result = self.ocr_processor.process_image(
-                    str(image_path),
-                    enhance=settings['enhance_image']
-                )
+                print(f"[批量处理] 开始处理文件: {image_path.name}")
+                vision_result = self.vision_processor.process_image(str(image_path))
+                print(f"[批量处理] 视觉识别完成，成功: {vision_result['success']}")
                 
-                # 调试：显示OCR结果
-                st.write("**调试信息 - OCR结果：**")
-                st.json(ocr_result)
+                # 调试：显示视觉识别结果
+                st.write("**调试信息 - GLM-4V-Flash识别结果：**")
+                st.json(vision_result)
                 
                 # 步骤2: AI增强处理
-                if ocr_result['success']:
+                if vision_result['success']:
                     status_text.text(f"🤖 步骤2: AI分析和增强 - {image_path.name}")
-                    st.info(f"识别到的文本长度: {len(ocr_result.get('raw_text', ''))}")
+                    st.info(f"识别到的文本长度: {len(vision_result.get('raw_text', ''))}")
+                    print(f"[批量处理] 开始AI分析，文本长度: {len(vision_result.get('raw_text', ''))}")
                     time.sleep(0.5)  # 让用户看到处理步骤
                     
                     try:
-                        enhanced_result = self.ai_ocr.process_image_with_ai(
-                            ocr_result, f"英语教材 - {image_path.name}"
+                        enhanced_result = self.ai_analyzer.process_image_with_ai(
+                            vision_result, f"英语教材 - {image_path.name}"
                         )
                         st.write("**调试信息 - AI增强结果：**")
                         st.json(enhanced_result)
                     except Exception as ai_error:
+                        print(f"[批量处理] AI分析失败: {ai_error}")
                         st.error(f"AI处理失败: {ai_error}")
                         # 创建基本的错误结果
                         enhanced_result = {
                             'success': False,
                             'error': str(ai_error),
-                            'raw_text': ocr_result.get('raw_text', ''),
-                            'confidence': ocr_result.get('confidence', 0),
+                            'raw_text': vision_result.get('raw_text', ''),
+                            'confidence': vision_result.get('confidence', 0),
                             'analysis': {}
                         }
                 else:
-                    st.error(f"OCR识别失败: {ocr_result.get('error', '未知错误')}")
+                    print(f"[批量处理] 视觉识别失败: {vision_result.get('error', '未知错误')}")
+                    st.error(f"视觉识别失败: {vision_result.get('error', '未知错误')}")
                     continue
                 
                 # 步骤3: 整理结果
@@ -373,20 +376,27 @@ class EnglishLearningInterface:
     def _initialize_processors(self) -> bool:
         """初始化处理器"""
         try:
-            if self.ocr_processor is None:
-                with st.spinner("初始化OCR引擎..."):
-                    self.ocr_processor = create_ocr_processor()
+            print(f"[初始化] 开始初始化处理器...")
             
-            if self.ai_ocr is None:
-                with st.spinner("初始化AI引擎..."):
-                    self.ai_ocr = create_ai_enhanced_ocr()
+            if self.vision_processor is None:
+                with st.spinner("初始化GLM-4V-Flash视觉识别引擎..."):
+                    print(f"[初始化] 创建视觉处理器...")
+                    self.vision_processor = create_vision_processor()
+            
+            if self.ai_analyzer is None:
+                with st.spinner("初始化AI分析引擎..."):
+                    print(f"[初始化] 创建AI分析器...")
+                    self.ai_analyzer = create_ai_enhanced_ocr()
             
             if self.doc_generator is None:
+                print(f"[初始化] 创建文档生成器...")
                 self.doc_generator = DocumentGenerator()
             
+            print(f"[初始化] 处理器初始化完成")
             return True
             
         except Exception as e:
+            print(f"[初始化] 初始化失败: {e}")
             st.error(f"初始化处理器失败: {e}")
             return False
     
@@ -690,11 +700,12 @@ class EnglishLearningInterface:
         # 页脚
         st.markdown("---")
         st.markdown(
-            '<p style="text-align: center; color: #666; font-size: 0.8rem;">'
-            '🤖 AI增强OCR系统 | 基于PaddleOCR 3.1 + 智普AI GLM-4.5-flash'
+            f'<p style="text-align: center; color: #666; font-size: 0.8rem;">'
+            f'🤖 纯AI视觉识别系统 {self.version} | 基于智普AI GLM-4V-Flash + GLM-4-Flash'
             '</p>',
             unsafe_allow_html=True
         )
+        print(f"[UI] 渲染页脚，版本: {self.version}")
 
 
 def create_main_interface() -> EnglishLearningInterface:
