@@ -20,7 +20,7 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.2.5"
+        self.version = "v1.2.6"
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
@@ -185,9 +185,14 @@ class EnglishLearningInterface:
         st.info(f"已上传 {len(uploaded_files)} 个文件")
         
         if st.button("🚀 开始处理", type="primary"):
+            print(f"[处理] 用户点击开始处理按钮")
+            
             # 初始化处理器
             if not self._initialize_processors():
+                print(f"[处理] 处理器初始化失败")
                 return None
+            else:
+                print(f"[处理] 处理器初始化成功")
                 
             results = []
             progress_bar = st.progress(0)
@@ -197,6 +202,10 @@ class EnglishLearningInterface:
                 status_text.text(f"正在处理: {uploaded_file.name}")
                 
                 try:
+                    # 调试：检查处理器状态
+                    print(f"[调试] vision_processor存在: {self.vision_processor is not None}")
+                    print(f"[调试] ai_analyzer存在: {self.ai_analyzer is not None}")
+                    
                     # 步骤1: GLM-4V-Flash视觉识别
                     status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {uploaded_file.name}")
                     print(f"[处理] 开始处理上传文件: {uploaded_file.name}")
@@ -243,6 +252,10 @@ class EnglishLearningInterface:
                         continue
                     
                 except Exception as e:
+                    print(f"[处理] 处理 {uploaded_file.name} 异常: {e}")
+                    print(f"[处理] 异常详情: {type(e).__name__}")
+                    import traceback
+                    print(f"[处理] 堆栈跟踪: {traceback.format_exc()}")
                     st.error(f"处理 {uploaded_file.name} 时出错: {e}")
                 
                 progress_bar.progress((i + 1) / len(uploaded_files))
@@ -694,8 +707,14 @@ class EnglishLearningInterface:
         # 主要内容区域
         processing_results = self.render_image_upload_section(settings)
         
+        # 调试：检查处理结果
+        print(f"[主界面] processing_results: {processing_results}")
+        
         if processing_results:
+            print(f"[主界面] 开始渲染结果区域")
             self.render_results_section(processing_results)
+        else:
+            print(f"[主界面] 没有处理结果需要显示")
         
         # 页脚
         st.markdown("---")
