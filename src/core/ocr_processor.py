@@ -1,7 +1,7 @@
 """
-AI增强OCR处理模块
+AI视觉识别OCR处理模块
 
-基于PaddleOCR 3.1 + 智普AI的双重增强识别系统
+基于智普AI GLM-4V-Flash的视觉识别系统
 """
 
 import streamlit as st
@@ -12,239 +12,127 @@ import logging
 from typing import Dict, List, Optional, Tuple, Union
 from pathlib import Path
 
-# 安全导入OpenCV
-try:
-    import cv2
-    OPENCV_AVAILABLE = True
-except ImportError as e:
-    st.error(f"OpenCV导入失败: {e}")
-    st.info("请确保使用opencv-python-headless版本")
-    cv2 = None
-    OPENCV_AVAILABLE = False
-
-# 云端模式：不使用PaddleOCR，专注AI文本分析
-OCR_AVAILABLE = False
-PaddleOCR = None
-
+from .ai_analyzer import ZhipuAIClient
 from ..utils.config import config
 
 
-class ImagePreprocessor:
-    """图像预处理器"""
-    
-    @staticmethod
-    def enhance_image(image: Union[np.ndarray, Image.Image]) -> np.ndarray:
-        """
-        图像增强处理
-        
-        Args:
-            image: 输入图像
-            
-        Returns:
-            增强后的图像数组
-        """
-        if not OPENCV_AVAILABLE:
-            # OpenCV不可用时的基础处理
-            if isinstance(image, Image.Image):
-                image = np.array(image.convert('L'))  # 转灰度
-            elif len(image.shape) == 3:
-                # 简单的RGB到灰度转换
-                image = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
-            return image.astype(np.uint8)
-            
-        if isinstance(image, Image.Image):
-            image = np.array(image)
-        
-        # 转换为灰度图
-        if len(image.shape) == 3:
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = image
-        
-        # 降噪处理
-        denoised = cv2.medianBlur(gray, 3)
-        
-        # 锐化处理
-        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-        sharpened = cv2.filter2D(denoised, -1, kernel)
-        
-        # 自适应二值化处理
-        binary = cv2.adaptiveThreshold(
-            sharpened, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY, 11, 2
-        )
-        
-        return binary
-    
-    @staticmethod
-    def rotate_image(image: np.ndarray, angle: float) -> np.ndarray:
-        """
-        旋转图像
-        
-        Args:
-            image: 输入图像
-            angle: 旋转角度
-            
-        Returns:
-            旋转后的图像
-        """
-        if not OPENCV_AVAILABLE:
-            # OpenCV不可用时，返回原图像
-            st.info("图像旋转功能需要OpenCV支持")
-            return image
-            
-        h, w = image.shape[:2]
-        center = (w // 2, h // 2)
-        
-        # 计算旋转矩阵
-        rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
-        
-        # 执行旋转
-        rotated = cv2.warpAffine(image, rotation_matrix, (w, h), 
-                               flags=cv2.INTER_CUBIC, 
-                               borderMode=cv2.BORDER_REPLICATE)
-        
-        return rotated
-
-
-@st.cache_resource
-def _get_ocr_instance():
-    """云端模式：返回基础OCR标识，使用AI文本分析"""
-    return "basic_ocr"
-
-
-class OCRProcessor:
-    """AI增强OCR处理器"""
+class VisionOCRProcessor:
+    """基于GLM-4V-Flash的视觉识别OCR处理器"""
     
     def __init__(self):
-        self.preprocessor = ImagePreprocessor()
+        self.ai_client = ZhipuAIClient()
     
-    @property
-    def ocr_model(self):
-        """延迟加载OCR模型"""
-        return _get_ocr_instance()
-    
-    def process_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray], 
-                     enhance: bool = True) -> Dict:
+    def _prepare_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray]) -> str:
         """
-        处理图像并进行OCR识别
-        
-        Args:
-            image_input: 图像输入（文件路径、字节数据、PIL图像或numpy数组）
-            enhance: 是否进行图像增强
-            
-        Returns:
-            OCR识别结果字典
-        """
-        # 获取OCR模型实例
-        ocr_model = self.ocr_model
-        
-        # 处理基础OCR模式
-        if ocr_model == "basic_ocr":
-            return self._basic_ocr_fallback(image_input)
-        
-        try:
-            # 统一处理输入格式
-            image_array = self._prepare_image(image_input)
-            
-            # 图像预处理
-            if enhance:
-                processed_image = self.preprocessor.enhance_image(image_array)
-            else:
-                processed_image = image_array
-            
-            # OCR识别
-            ocr_results = ocr_model.ocr(processed_image, cls=True)
-            
-            # 解析结果
-            return self._parse_ocr_results(ocr_results)
-            
-        except Exception as e:
-            logging.error(f"OCR处理失败: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'raw_text': '',
-                'confidence': 0.0,
-                'details': []
-            }
-    
-    def _prepare_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray]) -> np.ndarray:
-        """
-        准备图像数据
+        准备图像数据，保存为临时文件
         
         Args:
             image_input: 各种格式的图像输入
             
         Returns:
-            numpy数组格式的图像
+            临时图像文件路径
         """
-        if isinstance(image_input, str):
-            # 文件路径
-            image = Image.open(image_input)
-            return np.array(image)
+        import tempfile
+        import os
         
-        elif isinstance(image_input, bytes):
-            # 字节数据
-            image = Image.open(io.BytesIO(image_input))
-            return np.array(image)
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+            temp_path = temp_file.name
         
-        elif isinstance(image_input, Image.Image):
-            # PIL图像
-            return np.array(image_input)
-        
-        elif isinstance(image_input, np.ndarray):
-            # numpy数组
-            return image_input
-        
-        else:
-            raise ValueError(f"不支持的图像输入类型: {type(image_input)}")
+        try:
+            if isinstance(image_input, str):
+                # 已经是文件路径
+                return image_input
+            
+            elif isinstance(image_input, bytes):
+                # 字节数据
+                image = Image.open(io.BytesIO(image_input))
+                image.save(temp_path, 'JPEG')
+                return temp_path
+            
+            elif isinstance(image_input, Image.Image):
+                # PIL图像
+                image_input.save(temp_path, 'JPEG')
+                return temp_path
+            
+            elif isinstance(image_input, np.ndarray):
+                # numpy数组
+                image = Image.fromarray(image_input)
+                image.save(temp_path, 'JPEG')
+                return temp_path
+            
+            else:
+                raise ValueError(f"不支持的图像输入类型: {type(image_input)}")
+                
+        except Exception as e:
+            # 清理临时文件
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise e
     
-    def _parse_ocr_results(self, ocr_results: List) -> Dict:
+    def process_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray], 
+                     enhance: bool = True) -> Dict:
         """
-        解析OCR识别结果
+        使用GLM-4V-Flash处理图像并进行文字识别
         
         Args:
-            ocr_results: PaddleOCR的识别结果
+            image_input: 图像输入（文件路径、字节数据、PIL图像或numpy数组）
+            enhance: 是否进行图像增强（对GLM-4V-Flash无效，保留兼容性）
             
         Returns:
-            格式化的结果字典
+            OCR识别结果字典
         """
-        if not ocr_results or not ocr_results[0]:
+        temp_file = None
+        
+        try:
+            # 准备图像文件
+            image_path = self._prepare_image(image_input)
+            
+            # 如果是临时文件，记录以便清理
+            if not isinstance(image_input, str):
+                temp_file = image_path
+            
+            # 使用GLM-4V-Flash进行视觉识别
+            vision_result = self.ai_client.recognize_image_text(image_path, "英语教材内容")
+            
+            # 转换为统一的OCR结果格式
+            if vision_result['success']:
+                return {
+                    'success': True,
+                    'raw_text': vision_result['raw_text'],
+                    'confidence': vision_result['confidence'],
+                    'details': vision_result.get('details', []),
+                    'method': 'GLM-4V-Flash',
+                    'vision_model': vision_result.get('vision_model', 'glm-4v-flash')
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': vision_result.get('error', '视觉识别失败'),
+                    'raw_text': '',
+                    'confidence': 0.0,
+                    'details': []
+                }
+                
+        except Exception as e:
+            logging.error(f"GLM-4V-Flash处理失败: {e}")
             return {
                 'success': False,
-                'error': '未识别到文字',
+                'error': f'图像处理失败: {e}',
                 'raw_text': '',
                 'confidence': 0.0,
                 'details': []
             }
         
-        text_lines = []
-        details = []
-        total_confidence = 0.0
-        
-        for line in ocr_results[0]:
-            # 解析每行结果：[坐标框, (文字, 置信度)]
-            bbox, (text, confidence) = line
-            
-            text_lines.append(text)
-            details.append({
-                'text': text,
-                'confidence': confidence,
-                'bbox': bbox
-            })
-            total_confidence += confidence
-        
-        # 计算平均置信度
-        avg_confidence = total_confidence / len(details) if details else 0.0
-        
-        return {
-            'success': True,
-            'raw_text': '\n'.join(text_lines),
-            'confidence': avg_confidence,
-            'details': details,
-            'line_count': len(details)
-        }
+        finally:
+            # 清理临时文件
+            if temp_file and temp_file != image_input:
+                try:
+                    import os
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+                except Exception:
+                    pass  # 忽略清理错误
     
     def batch_process(self, image_list: List[Union[str, bytes, Image.Image]], 
                      progress_callback=None) -> List[Dict]:
@@ -272,46 +160,15 @@ class OCRProcessor:
                 progress_callback(i + 1, total)
         
         return results
-    
-    def _basic_ocr_fallback(self, image_input: Union[str, bytes, Image.Image, np.ndarray]) -> Dict:
-        """
-        基础OCR备用方案 - 当PaddleOCR不可用时使用
-        
-        Args:
-            image_input: 图像输入
-            
-        Returns:
-            基础OCR结果
-        """
-        try:
-            # 预处理图像
-            image_array = self._prepare_image(image_input)
-            processed_image = self.preprocessor.enhance_image(image_array)
-            
-            # 返回模拟的OCR结果，提示用户上传文本
-            return {
-                'success': True,
-                'raw_text': '⚠️ 云端环境OCR功能受限\n请手动输入图片中的英语文本，系统将提供AI增强分析。\n\n您可以：\n1. 在下方文本框中输入识别的文字\n2. 使用AI分析和文档生成功能\n3. 或者在本地环境中使用完整OCR功能',
-                'confidence': 0.8,
-                'details': [{
-                    'text': '云端模式 - 请手动输入文本',
-                    'confidence': 0.8,
-                    'bbox': [[0, 0], [100, 0], [100, 20], [0, 20]]
-                }],
-                'line_count': 1,
-                'fallback_mode': True
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': f'基础OCR处理失败: {e}',
-                'raw_text': '',
-                'confidence': 0.0,
-                'details': []
-            }
+
+
+# 保持向后兼容的OCRProcessor类
+class OCRProcessor(VisionOCRProcessor):
+    """OCR处理器 - 兼容旧版本接口"""
+    pass
 
 
 @st.cache_resource
-def create_ocr_processor() -> OCRProcessor:
-    """创建OCR处理器实例 - 使用缓存避免重复创建"""
-    return OCRProcessor()
+def create_ocr_processor() -> VisionOCRProcessor:
+    """创建基于GLM-4V-Flash的OCR处理器实例"""
+    return VisionOCRProcessor()

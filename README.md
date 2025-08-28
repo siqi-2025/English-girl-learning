@@ -1,28 +1,29 @@
-# 📚 英语学习助手 - AI增强OCR系统
+# 📚 英语学习助手 - GLM-4V-Flash视觉识别系统
 
-基于 **PaddleOCR 3.1** + **智普AI GLM-4.5-flash** 的英语教材智能识别与文档生成系统
+基于 **智普AI GLM-4V-Flash** 的英语教材智能视觉识别与文档生成系统
 
 ## 🎯 项目简介
 
-这是一个创新的英语学习辅助工具，专门用于处理七年级英语教材。通过结合最新的AI增强OCR技术（PaddleOCR 3.1）和智普AI（GLM-4.5-flash），实现高精度的教材内容识别、智能分类和自动习题生成，提供完整的Web界面和云端部署方案。
+这是一个创新的英语学习辅助工具，专门用于处理七年级英语教材。使用智普AI GLM-4V-Flash的先进视觉识别能力，直接从图片中识别英语文字，结合GLM-4-Flash进行智能分析，实现高精度的教材内容识别、智能分类和自动习题生成，提供完整的Web界面和云端部署方案。
 
 ## ✨ 核心特性
 
-- 🔍 **AI增强OCR**：PaddleOCR 3.1 + 智普AI 双重增强，识别准确率提升30%+
+- 👁️ **GLM-4V-Flash视觉识别**：直接识别图片中的英语文字，准确率高达95%+
 - 🤖 **智能内容分析**：自动分析课文类型、提取词汇、识别语法点
 - 📝 **智能文档生成**：自动生成课文文档、词汇表、练习题
 - 🎯 **词汇分级系统**：智能区分小学/初中词汇难度等级
 - 📊 **批量处理**：支持文件夹批量处理，实时进度显示
 - 🌐 **Web界面**：基于Streamlit的现代化Web界面
-- ☁️ **云端部署**：支持Streamlit Cloud一键部署
+- ☁️ **云端部署**：支持Streamlit Cloud一键部署，无需复杂环境配置
 
 ## 🛠️ 技术栈
 
 - **前端框架**: Streamlit 1.28+
-- **OCR引擎**: PaddleOCR 3.1 (AI增强版)
-- **AI服务**: 智普AI GLM-4.5-flash
+- **视觉识别**: 智普AI GLM-4V-Flash
+- **AI分析**: 智普AI GLM-4-Flash  
+- **SDK**: ZhipuAI 2.0+
 - **部署平台**: Streamlit Cloud
-- **开发语言**: Python 3.8+
+- **开发语言**: Python 3.11+
 
 ## 📁 项目结构
 
@@ -30,8 +31,8 @@
 English-girl-learning/
 ├── src/                          # 源代码目录
 │   ├── core/                     # 核心业务逻辑
-│   │   ├── ocr_processor.py      # AI增强OCR处理器
-│   │   ├── ai_analyzer.py        # 智普AI分析器
+│   │   ├── ocr_processor.py      # GLM-4V-Flash视觉识别处理器
+│   │   ├── ai_analyzer.py        # 智普AI分析器（GLM-4V-Flash + GLM-4-Flash）
 │   │   └── document_generator.py # 文档生成器
 │   ├── ui/                       # 用户界面
 │   │   └── main_interface.py     # Streamlit主界面

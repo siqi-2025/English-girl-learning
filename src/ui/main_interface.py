@@ -272,47 +272,12 @@ class EnglishLearningInterface:
             status_text.text(f"📁 正在处理文件: {image_path.name} ({i+1}/{len(image_files)})")
             
             try:
-                # 步骤1: OCR处理 - 云端手动输入模式
-                status_text.text(f"🔍 步骤1: 图像预处理 - {image_path.name}")
+                # 步骤1: GLM-4V-Flash视觉识别
+                status_text.text(f"🔍 步骤1: GLM-4V-Flash视觉识别 - {image_path.name}")
                 ocr_result = self.ocr_processor.process_image(
                     str(image_path),
                     enhance=settings['enhance_image']
                 )
-                
-                # 检查是否为云端模式，需要手动输入
-                if ocr_result.get('fallback_mode', False):
-                    status_text.text(f"✋ 需要手动输入文本 - {image_path.name}")
-                    
-                    # 显示图像预览
-                    from PIL import Image
-                    image = Image.open(image_path)
-                    st.image(image, caption=f"图像预览: {image_path.name}", width=400)
-                    
-                    # 手动输入文本框
-                    manual_text = st.text_area(
-                        f"请输入图片 {image_path.name} 中的英语文本：",
-                        height=150,
-                        key=f"manual_input_{i}",
-                        help="请仔细输入图片中的英语内容，系统将进行AI分析和文档生成"
-                    )
-                    
-                    if not manual_text.strip():
-                        st.warning("⚠️ 请输入图片中的文本内容后继续处理")
-                        continue
-                    
-                    # 更新OCR结果
-                    ocr_result = {
-                        'success': True,
-                        'raw_text': manual_text,
-                        'confidence': 0.95,  # 手动输入假设高置信度
-                        'details': [{
-                            'text': manual_text,
-                            'confidence': 0.95,
-                            'bbox': [[0, 0], [100, 0], [100, 20], [0, 20]]
-                        }],
-                        'line_count': len(manual_text.split('\n')),
-                        'manual_input': True
-                    }
                 
                 # 步骤2: AI增强处理
                 if ocr_result['success']:

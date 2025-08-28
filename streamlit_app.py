@@ -44,8 +44,9 @@ def check_environment():
             'solution': '请设置环境变量 ENGLISH_LEARNING_ZHIPU_API_KEY'
         })
     
-    # OCR功能状态
-    st.sidebar.info("🌐 云端模式：AI增强文本分析（手动输入图片文本）")
+    # OCR功能状态  
+    st.sidebar.success("🤖 GLM-4V-Flash：智能视觉识别")
+    st.sidebar.markdown("*支持直接识别图片中的英语文字*")
     
     # 图像处理状态
     st.sidebar.success("图像处理: PIL + NumPy（基础版本）")

@@ -1,7 +1,7 @@
 """
 AI分析和增强模块
 
-基于智普AI GLM-4.5-flash的内容分析、语义校正和习题生成
+基于智普AI GLM-4V-Flash的图像识别和内容分析
 """
 
 import streamlit as st
@@ -9,9 +9,19 @@ import requests
 import json
 import time
 import logging
+import base64
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from ..utils.config import config
+
+# 智普AI SDK
+try:
+    from zhipuai import ZhipuAI
+    ZHIPUAI_SDK_AVAILABLE = True
+except ImportError:
+    ZhipuAI = None
+    ZHIPUAI_SDK_AVAILABLE = False
 
 
 @dataclass
@@ -37,24 +47,131 @@ class AnalysisResult:
 
 
 class ZhipuAIClient:
-    """智普AI客户端"""
+    """智普AI客户端 - 支持GLM-4V-Flash视觉识别"""
     
     def __init__(self):
         self.api_key = config.get_api_key()
         self.base_url = config.get("ai.base_url")
         self.model = config.get("ai.model", "glm-4-flash")
+        self.vision_model = "glm-4v-flash"  # 视觉识别模型
         
+        # 初始化智普AI客户端
+        if ZHIPUAI_SDK_AVAILABLE and self.api_key:
+            self.client = ZhipuAI(api_key=self.api_key)
+        else:
+            self.client = None
+            
         # Debug: 输出API密钥信息
         print(f"DEBUG - ZhipuAIClient init - API Key: {bool(self.api_key)}")
-        if self.api_key:
-            print(f"DEBUG - ZhipuAIClient init - API Key length: {len(self.api_key)}")
-            print(f"DEBUG - ZhipuAIClient init - API Key prefix: {self.api_key[:8]}...")
-        print(f"DEBUG - ZhipuAIClient init - Base URL: {self.base_url}")
+        print(f"DEBUG - ZhipuAI SDK Available: {ZHIPUAI_SDK_AVAILABLE}")
+        print(f"DEBUG - Vision Model: {self.vision_model}")
         
+        # 保留原有的headers用于备用API调用
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
+    
+    def _encode_image_to_base64(self, image_path: str) -> Optional[str]:
+        """将图片编码为base64格式"""
+        try:
+            with open(image_path, 'rb') as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                return f"data:image/jpeg;base64,{encoded_string}"
+        except Exception as e:
+            logging.error(f"图片编码失败: {e}")
+            return None
+    
+    def recognize_image_text(self, image_path: str, context: str = "英语教材内容") -> Dict:
+        """
+        使用GLM-4V-Flash识别图片中的文字
+        
+        Args:
+            image_path: 图片文件路径
+            context: 上下文信息，帮助模型理解图片内容
+            
+        Returns:
+            识别结果字典
+        """
+        if not self.client:
+            return {
+                'success': False,
+                'error': '智普AI SDK不可用',
+                'raw_text': '',
+                'confidence': 0.0
+            }
+        
+        try:
+            # 准备视觉识别的提示词
+            vision_prompt = f"""请仔细识别这张{context}图片中的所有英语文字内容，要求：
+
+1. **完整识别**：识别图片中所有可见的英语文字，包括标题、正文、注释等
+2. **保持格式**：尽量保持原始的段落结构和换行
+3. **准确性**：确保拼写和语法的准确性
+4. **完整性**：不要遗漏任何文字内容
+
+请直接返回识别出的英语文字内容，不需要额外的解释。"""
+
+            # 构建消息
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": vision_prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": self._encode_image_to_base64(image_path)
+                            }
+                        }
+                    ]
+                }
+            ]
+            
+            # 调用GLM-4V-Flash API
+            response = self.client.chat.completions.create(
+                model=self.vision_model,
+                messages=messages,
+                top_p=0.7,
+                temperature=0.3,  # 较低的温度确保准确性
+                max_tokens=2048,
+                stream=False
+            )
+            
+            # 解析响应
+            if response and response.choices:
+                recognized_text = response.choices[0].message.content.strip()
+                
+                return {
+                    'success': True,
+                    'raw_text': recognized_text,
+                    'confidence': 0.95,  # GLM-4V-Flash高置信度
+                    'details': [{
+                        'text': recognized_text,
+                        'confidence': 0.95,
+                        'method': 'GLM-4V-Flash'
+                    }],
+                    'vision_model': self.vision_model
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': '视觉识别返回为空',
+                    'raw_text': '',
+                    'confidence': 0.0
+                }
+                
+        except Exception as e:
+            logging.error(f"GLM-4V-Flash视觉识别失败: {e}")
+            return {
+                'success': False,
+                'error': f'视觉识别失败: {e}',
+                'raw_text': '',
+                'confidence': 0.0
+            }
     
     def _make_request(self, messages: List[Dict], **kwargs) -> Optional[Dict]:
         """

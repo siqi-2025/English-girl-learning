@@ -1,8 +1,11 @@
-# 英语学习助手 - 云端AI增强文本分析版本
-# 专为Streamlit Cloud优化，使用手动输入+AI分析模式
+# 英语学习助手 - GLM-4V-Flash视觉识别版本
+# 使用智普AI GLM-4V-Flash进行图像识别和文本分析
 
 # Web框架
 streamlit>=1.28.0
+
+# 智普AI SDK
+zhipuai>=2.0.0
 
 # 网络和API
 requests>=2.25.0
