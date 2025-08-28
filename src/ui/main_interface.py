@@ -279,38 +279,60 @@ class EnglishLearningInterface:
                     enhance=settings['enhance_image']
                 )
                 
+                # 调试：显示OCR结果
+                st.write("**调试信息 - OCR结果：**")
+                st.json(ocr_result)
+                
                 # 步骤2: AI增强处理
                 if ocr_result['success']:
                     status_text.text(f"🤖 步骤2: AI分析和增强 - {image_path.name}")
+                    st.info(f"识别到的文本长度: {len(ocr_result.get('raw_text', ''))}")
                     time.sleep(0.5)  # 让用户看到处理步骤
-                    enhanced_result = self.ai_ocr.process_image_with_ai(
-                        ocr_result, f"英语教材 - {image_path.name}"
-                    )
                     
-                    # 步骤3: 整理结果
-                    status_text.text(f"📝 步骤3: 整理和分类内容 - {image_path.name}")
-                    enhanced_result['filename'] = image_path.name
-                    enhanced_result['filepath'] = str(image_path)
-                    results.append(enhanced_result)
-                    st.session_state.processed_count += 1
+                    try:
+                        enhanced_result = self.ai_ocr.process_image_with_ai(
+                            ocr_result, f"英语教材 - {image_path.name}"
+                        )
+                        st.write("**调试信息 - AI增强结果：**")
+                        st.json(enhanced_result)
+                    except Exception as ai_error:
+                        st.error(f"AI处理失败: {ai_error}")
+                        # 创建基本的错误结果
+                        enhanced_result = {
+                            'success': False,
+                            'error': str(ai_error),
+                            'raw_text': ocr_result.get('raw_text', ''),
+                            'confidence': ocr_result.get('confidence', 0),
+                            'analysis': {}
+                        }
+                else:
+                    st.error(f"OCR识别失败: {ocr_result.get('error', '未知错误')}")
+                    continue
+                
+                # 步骤3: 整理结果
+                status_text.text(f"📝 步骤3: 整理和分类内容 - {image_path.name}")
+                enhanced_result['filename'] = image_path.name
+                enhanced_result['filepath'] = str(image_path)
+                results.append(enhanced_result)
+                st.session_state.processed_count += 1
+                
+                # 步骤4: 显示完成状态
+                status_text.text(f"✅ 完成处理: {image_path.name}")
+                time.sleep(0.3)
+                
+                # 实时显示处理结果
+                with result_container:
+                    if len(results) == 1:
+                        st.markdown("### 📊 处理结果")
                     
-                    # 步骤4: 显示完成状态
-                    status_text.text(f"✅ 完成处理: {image_path.name}")
-                    time.sleep(0.3)
-                    
-                    # 实时显示处理结果
-                    with result_container:
-                        if len(results) == 1:
-                            st.markdown("### 📊 处理结果")
-                        
-                        col1, col2, col3 = st.columns([2, 1, 1])
-                        with col1:
-                            st.text(f"✅ {image_path.name}")
-                        with col2:
-                            st.text(f"置信度: {enhanced_result.get('confidence', 0):.2f}")
-                        with col3:
-                            analysis = enhanced_result.get('analysis', {})
-                            st.text(f"类型: {analysis.get('content_type', '未知')}")
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    with col1:
+                        st.text(f"✅ {image_path.name}")
+                    with col2:
+                        st.text(f"置信度: {enhanced_result.get('confidence', 0):.2f}")
+                    with col3:
+                        analysis = enhanced_result.get('analysis', {})
+                        st.text(f"类型: {analysis.get('content_type', '未知')}")
                 
             except Exception as e:
                 st.error(f"处理 {image_path.name} 失败: {e}")
