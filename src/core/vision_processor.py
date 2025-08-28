@@ -23,7 +23,7 @@ class VisionProcessor:
     def __init__(self):
         print(f"[VisionProcessor] 初始化GLM-4V-Flash视觉处理器")
         self.ai_client = ZhipuAIClient()
-        self.version = "v1.3.0"
+        self.version = "v1.3.1"
         print(f"[VisionProcessor] 版本: {self.version} - 纯AI视觉识别")
     
     def _prepare_image(self, image_input: Union[str, bytes, Image.Image, np.ndarray]) -> str:
@@ -197,15 +197,15 @@ class VisionProcessor:
         return results
 
 
-@st.cache_resource
+# @st.cache_resource  # 临时禁用缓存以确保使用新版本
 def create_vision_processor() -> VisionProcessor:
-    """创建基于GLM-4V-Flash的视觉处理器实例"""
-    print(f"[Factory] 创建VisionProcessor实例")
+    """创建基于GLM-4V-Flash的视觉处理器实例 v1.3.1"""
+    print(f"[Factory] 创建VisionProcessor实例 v1.3.1")
     return VisionProcessor()
 
 
 # 保持向后兼容的函数名
-@st.cache_resource
+# @st.cache_resource  # 临时禁用缓存
 def create_ocr_processor() -> VisionProcessor:
     """创建视觉处理器实例（兼容旧版本接口）"""
     print(f"[Factory] 通过兼容接口创建VisionProcessor实例")
