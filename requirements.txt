@@ -1,12 +1,8 @@
-# 英语学习助手 - 云端无头环境优化版本
-# Python 3.11 + Linux headless 环境
+# 英语学习助手 - 云端AI增强文本分析版本
+# 专为Streamlit Cloud优化，使用手动输入+AI分析模式
 
 # Web框架
 streamlit>=1.28.0
-
-# OCR核心依赖 - 云端优化版本
-paddlepaddle-cpu>=2.5.0
-paddleocr>=2.7.0
 
 # 网络和API
 requests>=2.25.0
@@ -15,12 +11,9 @@ requests>=2.25.0
 pyyaml>=6.0
 markdown>=3.3.0
 
-# 图像处理 - 无头版本（解决libGL.so.1问题）
+# 图像处理 - 基础版本
 pillow>=8.0.0
 numpy>=1.21.0,<2.0.0
-opencv-python-headless>=4.5.0
 
-# AI分析和图像处理
+# AI分析和文档处理
 scikit-image>=0.19.0
-
-# 注意：使用opencv-python-headless避免Linux GUI依赖问题

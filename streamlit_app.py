@@ -44,28 +44,11 @@ def check_environment():
             'solution': '请设置环境变量 ENGLISH_LEARNING_ZHIPU_API_KEY'
         })
     
-    # 检查PaddleOCR（避免触发PDX初始化）
-    try:
-        import importlib.util
-        paddleocr_spec = importlib.util.find_spec("paddleocr")
-        if paddleocr_spec is not None:
-            st.sidebar.success("PaddleOCR: 可用（延迟加载）")
-        else:
-            raise ImportError("PaddleOCR not found")
-    except ImportError:
-        st.sidebar.info("🌐 云端模式：AI增强文本分析（手动输入）")
+    # OCR功能状态
+    st.sidebar.info("🌐 云端模式：AI增强文本分析（手动输入图片文本）")
     
-    # 检查OpenCV
-    try:
-        import cv2
-        cv_version = cv2.__version__
-        st.sidebar.success(f"OpenCV版本: {cv_version}")
-    except ImportError:
-        issues.append({
-            'type': 'error',
-            'message': 'OpenCV未安装',
-            'solution': '运行命令: pip install opencv-python'
-        })
+    # 图像处理状态
+    st.sidebar.success("图像处理: PIL + NumPy（基础版本）")
     
     # 检查必要的目录
     output_dir = Path('./output')

@@ -22,19 +22,9 @@ except ImportError as e:
     cv2 = None
     OPENCV_AVAILABLE = False
 
-# 使用安全的导入检查，避免在模块级别触发PDX初始化
-try:
-    import importlib.util
-    paddleocr_spec = importlib.util.find_spec("paddleocr")
-    OCR_AVAILABLE = paddleocr_spec is not None
-    if OCR_AVAILABLE:
-        # 延迟导入，只有在实际需要时才导入
-        PaddleOCR = None  # 将在_get_ocr_instance中动态导入
-    else:
-        PaddleOCR = None
-except Exception:
-    PaddleOCR = None
-    OCR_AVAILABLE = False
+# 云端模式：不使用PaddleOCR，专注AI文本分析
+OCR_AVAILABLE = False
+PaddleOCR = None
 
 from ..utils.config import config
 
@@ -119,41 +109,8 @@ class ImagePreprocessor:
 
 @st.cache_resource
 def _get_ocr_instance():
-    """获取OCR实例 - 使用全局缓存避免重复初始化"""
-    if not OCR_AVAILABLE:
-        return "basic_ocr"
-    
-    try:
-        # 动态导入PaddleOCR，避免模块级别初始化
-        from paddleocr import PaddleOCR
-        
-        # 设置PaddlePaddle环境变量
-        import os
-        os.environ['FLAGS_allocator_strategy'] = 'auto_growth'
-        os.environ['FLAGS_use_mkldnn'] = 'True'
-        
-        ocr_config = config.get("ocr", {})
-        
-        return PaddleOCR(
-            use_angle_cls=ocr_config.get("angle_classification", True),
-            lang=ocr_config.get("languages", ["ch", "en"])[0],  # 主语言
-            use_gpu=False,  # 强制使用CPU避免GPU初始化问题
-            show_log=False,
-            enable_mkldnn=True
-        )
-    except RuntimeError as e:
-        if "PDX has already been initialized" in str(e):
-            st.warning("⚠️ PaddleOCR已初始化，使用AI增强文本分析模式")
-            return "basic_ocr"
-        else:
-            st.error(f"OCR模型RuntimeError: {e}")
-            return "basic_ocr"
-    except ImportError as e:
-        st.info("🌐 云端模式：AI增强文本分析（手动输入）")
-        return "basic_ocr"
-    except Exception as e:
-        st.error(f"OCR模型初始化失败: {e}")
-        return "basic_ocr"
+    """云端模式：返回基础OCR标识，使用AI文本分析"""
+    return "basic_ocr"
 
 
 class OCRProcessor:
