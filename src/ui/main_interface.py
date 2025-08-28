@@ -20,7 +20,7 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.3.3"
+        self.version = "v1.4.0"
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
@@ -160,7 +160,8 @@ class EnglishLearningInterface:
             )
             
             if uploaded_files:
-                return self._process_uploaded_files(uploaded_files, settings)
+                # 简单显示上传的图片，不调用AI
+                return self._display_uploaded_images(uploaded_files)
                 
         else:
             folder_path = st.text_input(
@@ -404,6 +405,42 @@ class EnglishLearningInterface:
         status_text.text("✅ 批量处理完成！")
         return {'results': results, 'source': 'folder'}
     
+    def _display_uploaded_images(self, uploaded_files: List) -> Dict:
+        """显示上传的图片，不调用AI处理"""
+        st.success(f"✅ 已上传 {len(uploaded_files)} 个文件")
+        
+        results = []
+        
+        for i, uploaded_file in enumerate(uploaded_files):
+            st.markdown(f"### 📷 图片 {i+1}: {uploaded_file.name}")
+            
+            # 显示文件信息
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write(f"**文件名**: {uploaded_file.name}")
+            with col2:
+                st.write(f"**文件大小**: {uploaded_file.size} bytes")
+            with col3:
+                st.write(f"**文件类型**: {uploaded_file.type}")
+            
+            # 显示图片
+            st.image(uploaded_file, caption=f"上传的图片: {uploaded_file.name}", use_container_width=True)
+            
+            # 添加分隔线
+            if i < len(uploaded_files) - 1:
+                st.divider()
+            
+            # 记录结果（暂时不处理）
+            results.append({
+                'filename': uploaded_file.name,
+                'size': uploaded_file.size,
+                'type': uploaded_file.type,
+                'displayed': True
+            })
+        
+        st.info("💡 图片显示完成。AI处理功能已暂时禁用。")
+        return {'results': results, 'source': 'upload_display_only'}
+    
     def _initialize_processors(self) -> bool:
         """初始化处理器"""
         try:
@@ -437,6 +474,33 @@ class EnglishLearningInterface:
             return
         
         results = processing_results['results']
+        source = processing_results.get('source', 'unknown')
+        
+        # 检查是否是纯显示模式
+        if source == 'upload_display_only':
+            st.markdown("### 📊 图片上传统计")
+            
+            # 显示统计信息
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("上传文件数", len(results))
+            with col2:
+                total_size = sum(r.get('size', 0) for r in results)
+                st.metric("总大小", f"{total_size:,} bytes")
+            with col3:
+                image_types = set(r.get('type', '') for r in results)
+                st.metric("文件类型数", len(image_types))
+            with col4:
+                st.metric("显示状态", "✅ 全部显示")
+            
+            # 显示文件列表
+            st.markdown("### 📁 上传文件列表")
+            for i, result in enumerate(results):
+                st.write(f"{i+1}. **{result['filename']}** ({result['size']} bytes, {result['type']})")
+                
+            return
+        
+        # 原有的AI处理结果显示逻辑
         st.markdown("### 📋 处理结果详情")
         
         # 统计信息
@@ -447,7 +511,7 @@ class EnglishLearningInterface:
             successful = sum(1 for r in results if r.get('success'))
             st.metric("成功处理", successful)
         with col3:
-            avg_confidence = sum(r.get('confidence', 0) for r in results) / len(results)
+            avg_confidence = sum(r.get('confidence', 0) for r in results) / len(results) if results else 0
             st.metric("平均置信度", f"{avg_confidence:.2f}")
         with col4:
             total_text = sum(len(r.get('corrected_text', '')) for r in results)

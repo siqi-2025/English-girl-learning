@@ -284,59 +284,71 @@ class ZhipuAIClient:
 
 请直接返回识别出的英语文字内容，不需要额外的解释。"""
 
-            # 获取图像URL - 优先使用Streamlit上传文件URL
+            # GLM-4V-Flash需要网络可访问的图片URL，使用GitHub图床上传
+            print(f"[GLM-4V-Flash] 开始准备图像URL，uploaded_file存在: {uploaded_file is not None}")
+            
+            import streamlit as st
+            import tempfile
+            import os
+            
             image_url = None
-            print(f"[GLM-4V-Flash] 开始获取图像URL，uploaded_file存在: {uploaded_file is not None}")
+            temp_file_path = None
             
             if uploaded_file:
-                print(f"[GLM-4V-Flash] 尝试使用Streamlit上传文件构造URL...")
-                # 如果有Streamlit上传文件，直接构造URL
-                image_url = self._get_streamlit_file_url(uploaded_file)
-                if image_url:
-                    print(f"[GLM-4V-Flash] ✅ 成功使用Streamlit文件URL: {image_url}")
-                else:
-                    print(f"[GLM-4V-Flash] ❌ Streamlit文件URL构造失败")
-            
-            if not image_url:
-                # 如果没有Streamlit文件或构造失败，回退到GitHub上传
-                print(f"[GLM-4V-Flash] 回退到GitHub上传方案")
-                image_url = self._upload_image_to_github(image_input)
+                # 方案1: 保存Streamlit上传文件到临时文件，然后上传到GitHub
+                print(f"[GLM-4V-Flash] 处理Streamlit上传文件")
+                
+                # 创建临时文件
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                    temp_file_path = temp_file.name
+                    temp_file.write(uploaded_file.getvalue())
+                
+                print(f"[GLM-4V-Flash] 临时文件已创建: {temp_file_path}")
+                
+                # 上传到GitHub图床
+                image_url = self._upload_image_to_github(temp_file_path)
+                
                 if image_url:
                     print(f"[GLM-4V-Flash] ✅ GitHub上传成功: {image_url}")
+                    st.success(f"✅ 图片已上传到GitHub图床")
+                    st.write(f"**📊 图像URL**: {image_url}")
                 else:
-                    print(f"[GLM-4V-Flash] ❌ GitHub上传也失败")
-            
-            if not image_url:
-                error_msg = f'无法获取图像URL: {image_input}'
-                print(f"[GLM-4V-Flash] ❌ 最终错误: {error_msg}")
+                    # GitHub上传失败，尝试构造Streamlit URL
+                    print(f"[GLM-4V-Flash] GitHub上传失败，尝试Streamlit URL")
+                    image_url = self._get_streamlit_file_url(uploaded_file)
+                    
+                    if image_url:
+                        print(f"[GLM-4V-Flash] ✅ Streamlit URL构造成功: {image_url}")
+                        st.warning(f"⚠️ 使用Streamlit临时URL（可能无法在云端访问）")
+                    else:
+                        error_msg = '无法获取可访问的图片URL'
+                        print(f"[GLM-4V-Flash] ❌ {error_msg}")
+                        return {
+                            'success': False,
+                            'error': error_msg,
+                            'raw_text': '',
+                            'confidence': 0.0
+                        }
+                
+            elif isinstance(image_input, str):
+                # 方案2: 直接上传文件路径到GitHub
+                print(f"[GLM-4V-Flash] 直接上传文件: {image_input}")
+                image_url = self._upload_image_to_github(image_input)
+                
+                if not image_url:
+                    # 如果GitHub上传失败，直接使用本地路径（本地测试用）
+                    image_url = f"file://{image_input}"
+                    print(f"[GLM-4V-Flash] ⚠️ 使用本地文件路径: {image_url}")
+                    
+            else:
+                error_msg = f'不支持的图像输入格式: {type(image_input)}'
+                print(f"[GLM-4V-Flash] ❌ {error_msg}")
                 return {
                     'success': False,
                     'error': error_msg,
                     'raw_text': '',
                     'confidence': 0.0
                 }
-            
-            # 测试URL可访问性
-            print(f"[GLM-4V-Flash] 测试URL可访问性...")
-            import streamlit as st
-            st.write(f"**🧪 测试URL可访问性**: `{image_url}`")
-            
-            try:
-                import requests
-                response = requests.head(image_url, timeout=10)
-                print(f"[GLM-4V-Flash] URL测试结果: HTTP {response.status_code}")
-                
-                if response.status_code == 200:
-                    print(f"[GLM-4V-Flash] ✅ URL可访问")
-                    st.success(f"✅ URL测试成功: HTTP {response.status_code}")
-                else:
-                    print(f"[GLM-4V-Flash] ⚠️ 警告: URL返回非200状态码")
-                    st.warning(f"⚠️ URL测试警告: HTTP {response.status_code}")
-                    
-            except Exception as e:
-                print(f"[GLM-4V-Flash] ⚠️ URL测试异常: {e}")
-                st.error(f"❌ URL测试失败: {e}")
-                print(f"[GLM-4V-Flash] 继续尝试API调用...")
 
             print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
 
