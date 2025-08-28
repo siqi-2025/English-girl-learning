@@ -1,0 +1,25 @@
+# 英语学习助手 - Streamlit Cloud部署专用依赖
+# 优化的依赖版本，兼容Python 3.13
+
+# Web框架
+streamlit>=1.28.0
+
+# 网络和API
+requests>=2.25.0
+
+# 配置和文档处理
+pyyaml>=6.0
+markdown>=3.3.0
+
+# 图像处理 - 基础版本
+pillow>=8.0.0
+numpy>=1.21.0,<2.0.0
+opencv-python-headless>=4.5.0
+
+# OCR替代方案 - 如果PaddleOCR不可用，使用轻量级替代
+# 注意：Streamlit Cloud可能不支持复杂的OCR库
+# pytesseract>=0.3.9
+# easyocr>=1.6.0
+
+# AI和机器学习
+scikit-image>=0.19.0

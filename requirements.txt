@@ -1,24 +1,24 @@
+# 英语学习助手 - 完整OCR功能版本
+# Python 3.11 环境下的完整依赖
+
 # Web框架
-streamlit==1.28.1
+streamlit>=1.28.0
 
-# AI增强OCR核心依赖
-paddlepaddle-cpu==2.5.2
-paddleocr==3.1.0
-
-# 图像处理
-opencv-python-headless==4.8.1.78
-pillow==10.0.1
-numpy==1.24.4
+# OCR核心依赖
+paddlepaddle>=2.5.0
+paddleocr>=2.7.0
 
 # 网络和API
-requests==2.31.0
+requests>=2.25.0
 
-# 配置和文档
-pyyaml==6.0.1
-markdown==3.5.1
-python-docx==0.8.11
+# 配置和文档处理
+pyyaml>=6.0
+markdown>=3.3.0
 
-# 开发和测试
-pytest==7.4.3
-black==23.9.1
-flake8==6.1.0
+# 图像处理
+pillow>=8.0.0
+numpy>=1.21.0,<2.0.0
+opencv-python-headless>=4.5.0
+
+# AI分析和图像处理
+scikit-image>=0.19.0
