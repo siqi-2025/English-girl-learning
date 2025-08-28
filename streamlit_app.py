@@ -10,6 +10,15 @@ import os
 from pathlib import Path
 import streamlit as st
 
+# 禁用系统代理以避免httpx SOCKS错误
+os.environ.pop('HTTP_PROXY', None)
+os.environ.pop('HTTPS_PROXY', None)
+os.environ.pop('ALL_PROXY', None)
+os.environ.pop('http_proxy', None)
+os.environ.pop('https_proxy', None)
+os.environ.pop('all_proxy', None)
+print("[启动] 已禁用系统代理设置，避免SOCKS错误")
+
 # 设置API密钥环境变量（如果尚未设置）
 if not os.getenv("ENGLISH_LEARNING_ZHIPU_API_KEY"):
     os.environ["ENGLISH_LEARNING_ZHIPU_API_KEY"] = "17e5feb32ed94b66823c9f9e0f188752.XOQDn1kygRTltwfD"

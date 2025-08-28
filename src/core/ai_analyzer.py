@@ -55,6 +55,16 @@ class ZhipuAIClient:
         self.model = config.get("ai.model", "glm-4-flash")
         self.vision_model = "glm-4v-flash"  # 视觉识别模型
         
+        # 禁用代理以避免SOCKS错误
+        import os
+        os.environ.pop('HTTP_PROXY', None)
+        os.environ.pop('HTTPS_PROXY', None)
+        os.environ.pop('ALL_PROXY', None)
+        os.environ.pop('http_proxy', None)
+        os.environ.pop('https_proxy', None)
+        os.environ.pop('all_proxy', None)
+        print("[ZhipuAI] 已禁用系统代理设置")
+        
         # 初始化智普AI客户端
         if ZHIPUAI_SDK_AVAILABLE and self.api_key:
             self.client = ZhipuAI(api_key=self.api_key)
