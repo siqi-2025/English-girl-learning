@@ -229,13 +229,13 @@ class ZhipuAIClient:
         使用GLM-4V-Flash识别图片中的文字
         
         Args:
-            image_path: 图片文件路径
+            image_input: 图片文件路径
             context: 上下文信息，帮助模型理解图片内容
             
         Returns:
             识别结果字典
         """
-        print(f"[GLM-4V-Flash] 开始识别图像: {image_path}")
+        print(f"[GLM-4V-Flash] 开始识别图像: {image_input}")
         
         if not self.client:
             error_msg = '智普AI SDK不可用'

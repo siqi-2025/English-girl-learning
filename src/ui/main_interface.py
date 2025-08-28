@@ -20,7 +20,7 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.3.1"
+        self.version = "v1.3.2"
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
