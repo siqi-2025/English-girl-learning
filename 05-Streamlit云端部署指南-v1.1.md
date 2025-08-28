@@ -54,17 +54,15 @@ if __name__ == "__main__":
 
 ### 2. 依赖配置文件
 ```txt
-# requirements.txt - AI增强云端优化版本
-streamlit==1.28.1
-paddlepaddle-cpu==2.5.2
-paddleocr==3.1.0
-opencv-python-headless==4.8.1.78
-requests==2.31.0
-pyyaml==6.0.1
-pillow==10.0.1
-numpy==1.24.4
-markdown==3.5.1
-python-docx==0.8.11
+# requirements.txt - 云端兼容优化版本
+streamlit>=1.28.0
+requests>=2.25.0
+pyyaml>=6.0
+markdown>=3.3.0
+pillow>=8.0.0
+numpy>=1.21.0,<2.0.0
+opencv-python-headless>=4.5.0
+scikit-image>=0.19.0
 ```
 
 ### 3. Streamlit配置
