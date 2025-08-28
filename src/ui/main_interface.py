@@ -423,6 +423,14 @@ class EnglishLearningInterface:
             with col3:
                 st.write(f"**文件类型**: {uploaded_file.type}")
             
+            # 获取并显示图片URL
+            image_url = self._get_uploaded_file_url(uploaded_file)
+            if image_url:
+                st.write(f"**🔗 图片URL**: `{image_url}`")
+                st.info(f"💡 此URL可用于AI API调用")
+            else:
+                st.warning("⚠️ 无法获取图片URL")
+            
             # 显示图片
             st.image(uploaded_file, caption=f"上传的图片: {uploaded_file.name}", use_container_width=True)
             
@@ -430,16 +438,78 @@ class EnglishLearningInterface:
             if i < len(uploaded_files) - 1:
                 st.divider()
             
-            # 记录结果（暂时不处理）
+            # 记录结果（包含URL）
             results.append({
                 'filename': uploaded_file.name,
                 'size': uploaded_file.size,
                 'type': uploaded_file.type,
+                'url': image_url,
                 'displayed': True
             })
         
         st.info("💡 图片显示完成。AI处理功能已暂时禁用。")
         return {'results': results, 'source': 'upload_display_only'}
+    
+    def _get_uploaded_file_url(self, uploaded_file) -> Optional[str]:
+        """获取Streamlit上传文件的真实URL地址"""
+        try:
+            # 打印所有可用的属性和方法
+            print(f"[URL获取] 检查UploadedFile对象的所有属性:")
+            all_attrs = dir(uploaded_file)
+            for attr in all_attrs:
+                if not attr.startswith('_'):
+                    try:
+                        value = getattr(uploaded_file, attr)
+                        if not callable(value):
+                            print(f"[URL获取]   {attr}: {value}")
+                        else:
+                            print(f"[URL获取]   {attr}: <method>")
+                    except:
+                        print(f"[URL获取]   {attr}: <无法获取>")
+            
+            # 尝试多种方式获取URL
+            possible_url_attrs = ['url', 'file_url', 'media_url', 'path', '_url', '_file_url', '_media_url']
+            
+            for attr in possible_url_attrs:
+                if hasattr(uploaded_file, attr):
+                    try:
+                        url_value = getattr(uploaded_file, attr)
+                        if url_value and isinstance(url_value, str):
+                            print(f"[URL获取] ✅ 找到URL属性 {attr}: {url_value}")
+                            return url_value
+                    except:
+                        pass
+            
+            # 尝试使用Streamlit内部API
+            try:
+                import streamlit.elements.image
+                if hasattr(streamlit.elements.image, 'image_to_url'):
+                    url = streamlit.elements.image.image_to_url(uploaded_file.getvalue())
+                    print(f"[URL获取] ✅ 使用image_to_url获取: {url}")
+                    return url
+            except Exception as e:
+                print(f"[URL获取] image_to_url失败: {e}")
+            
+            # 检查是否有file_id（之前的方法）
+            if hasattr(uploaded_file, 'file_id') and uploaded_file.file_id:
+                print(f"[URL获取] 文件ID: {uploaded_file.file_id}")
+                
+                # 尝试构造标准格式（虽然你说这不对，但作为备用）
+                import streamlit.web.server.server
+                try:
+                    server_url = "https://engirl.streamlit.app"
+                    file_url = f"{server_url}/_stcore/uploaded_files/{uploaded_file.file_id}/{uploaded_file.name}"
+                    print(f"[URL获取] ⚠️ 备用构造URL: {file_url}")
+                    return file_url
+                except:
+                    pass
+            
+            print(f"[URL获取] ❌ 无法获取文件URL")
+            return None
+                
+        except Exception as e:
+            print(f"[URL获取] ❌ 获取URL异常: {e}")
+            return None
     
     def _initialize_processors(self) -> bool:
         """初始化处理器"""
