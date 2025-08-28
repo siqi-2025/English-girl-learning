@@ -118,15 +118,27 @@ def _get_ocr_instance():
         return "basic_ocr"
     
     try:
+        # 设置PaddlePaddle环境变量防止重复初始化
+        import os
+        os.environ['FLAGS_allocator_strategy'] = 'auto_growth'
+        os.environ['FLAGS_use_mkldnn'] = 'True'
+        
         ocr_config = config.get("ocr", {})
         
         return PaddleOCR(
             use_angle_cls=ocr_config.get("angle_classification", True),
             lang=ocr_config.get("languages", ["ch", "en"])[0],  # 主语言
-            use_gpu=ocr_config.get("use_gpu", False),
+            use_gpu=False,  # 强制使用CPU避免GPU初始化问题
             show_log=False,
-            enable_mkldnn=ocr_config.get("enable_mkldnn", True)
+            enable_mkldnn=True
         )
+    except RuntimeError as e:
+        if "PDX has already been initialized" in str(e):
+            st.warning("⚠️ PaddleOCR已初始化，使用AI增强文本分析模式")
+            return "basic_ocr"
+        else:
+            st.error(f"OCR模型初始化失败: {e}")
+            return "basic_ocr"
     except Exception as e:
         st.error(f"OCR模型初始化失败: {e}")
         return "basic_ocr"
