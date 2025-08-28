@@ -44,17 +44,16 @@ def check_environment():
             'solution': '请设置环境变量 ENGLISH_LEARNING_ZHIPU_API_KEY'
         })
     
-    # 检查PaddleOCR
+    # 检查PaddleOCR（避免触发PDX初始化）
     try:
-        import paddleocr
-        ocr_version = getattr(paddleocr, '__version__', '未知')
-        st.sidebar.success(f"PaddleOCR版本: {ocr_version}")
+        import importlib.util
+        paddleocr_spec = importlib.util.find_spec("paddleocr")
+        if paddleocr_spec is not None:
+            st.sidebar.success("PaddleOCR: 可用（延迟加载）")
+        else:
+            raise ImportError("PaddleOCR not found")
     except ImportError:
-        issues.append({
-            'type': 'error',
-            'message': 'PaddleOCR未安装',
-            'solution': 'Python 3.11环境应支持PaddleOCR自动安装'
-        })
+        st.sidebar.info("🌐 云端模式：AI增强文本分析（手动输入）")
     
     # 检查OpenCV
     try:
