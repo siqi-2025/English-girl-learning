@@ -5,13 +5,22 @@ AI增强OCR处理模块
 """
 
 import streamlit as st
-import cv2
 import numpy as np
 from PIL import Image
 import io
 import logging
 from typing import Dict, List, Optional, Tuple, Union
 from pathlib import Path
+
+# 安全导入OpenCV
+try:
+    import cv2
+    OPENCV_AVAILABLE = True
+except ImportError as e:
+    st.error(f"OpenCV导入失败: {e}")
+    st.info("请确保使用opencv-python-headless版本")
+    cv2 = None
+    OPENCV_AVAILABLE = False
 
 try:
     from paddleocr import PaddleOCR
@@ -38,6 +47,15 @@ class ImagePreprocessor:
         Returns:
             增强后的图像数组
         """
+        if not OPENCV_AVAILABLE:
+            # OpenCV不可用时的基础处理
+            if isinstance(image, Image.Image):
+                image = np.array(image.convert('L'))  # 转灰度
+            elif len(image.shape) == 3:
+                # 简单的RGB到灰度转换
+                image = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
+            return image.astype(np.uint8)
+            
         if isinstance(image, Image.Image):
             image = np.array(image)
         
@@ -74,6 +92,11 @@ class ImagePreprocessor:
         Returns:
             旋转后的图像
         """
+        if not OPENCV_AVAILABLE:
+            # OpenCV不可用时，返回原图像
+            st.info("图像旋转功能需要OpenCV支持")
+            return image
+            
         h, w = image.shape[:2]
         center = (w // 2, h // 2)
         
