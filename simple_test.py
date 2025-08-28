@@ -48,7 +48,7 @@ async def run_test():
         
         try:
             print("[Test] Opening Streamlit app...")
-            await page.goto("http://localhost:8502")
+            await page.goto("http://localhost:8504")
             await page.wait_for_load_state('networkidle', timeout=30000)
             
             # Check version

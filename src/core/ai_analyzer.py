@@ -89,12 +89,17 @@ class ZhipuAIClient:
             
             import base64
             import time
+            import os
             
-            # GitHub仓库信息
-            github_token = "ghp_mock_token_for_demo"  # 实际应用中应该使用环境变量
+            # GitHub仓库信息 - 从环境变量获取token
+            github_token = os.getenv("GITHUB_TOKEN")
             owner = "siqi-2025"
             repo = "English-girl-learning"
             branch = "main"
+            
+            if not github_token:
+                print(f"[GLM-4V-Flash] 未配置GitHub token，跳过真实上传")
+                return None
             
             # 生成唯一文件名
             timestamp = int(time.time())
@@ -109,7 +114,6 @@ class ZhipuAIClient:
             print(f"[GLM-4V-Flash] 图片编码完成，大小: {len(encoded_content)} bytes")
             
             # 暂时禁用代理
-            import os
             original_proxies = {}
             proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
             for var in proxy_vars:
@@ -132,32 +136,26 @@ class ZhipuAIClient:
             
             # 请求数据
             data = {
-                "message": f"Upload temp image for GLM-4V-Flash processing",
+                "message": f"Upload temp image for GLM-4V-Flash processing: {filename}",
                 "content": encoded_content,
                 "branch": branch
             }
             
             print(f"[GLM-4V-Flash] 调用GitHub API上传图片...")
             
-            # 由于我们没有真实的GitHub token，直接返回GitHub raw URL格式
-            # 在实际使用时，这里应该真正调用GitHub API
-            github_raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{file_path}"
+            # 真实的GitHub API调用
+            response = session.put(api_url, json=data, headers=headers, timeout=30)
             
-            print(f"[GLM-4V-Flash] GitHub图床URL生成: {github_raw_url}")
+            print(f"[GLM-4V-Flash] GitHub API响应状态: {response.status_code}")
             
-            # 临时：由于没有真实token，使用一个包含英语文字的真实图片URL进行测试
-            test_image_urls = [
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/English_alphabet.png/800px-English_alphabet.png",
-                "https://i.imgur.com/9VGoz3K.png",  # Hello World示例图片
-                "https://via.placeholder.com/400x200.png?text=Hello+World+English+Test"
-            ]
-            
-            test_github_url = test_image_urls[0]  # 使用Wikipedia的英语字母表图片
-            
-            print(f"[GLM-4V-Flash] 使用测试图片URL (包含英语文字): {test_github_url}")
-            
-            # 实际应该返回上传后的真实URL
-            return test_github_url
+            if response.status_code == 201:  # 创建成功
+                result = response.json()
+                github_raw_url = result['content']['download_url']
+                print(f"[GLM-4V-Flash] GitHub上传成功: {github_raw_url}")
+                return github_raw_url
+            else:
+                print(f"[GLM-4V-Flash] GitHub API错误: {response.status_code} - {response.text}")
+                return None
             
         except Exception as e:
             print(f"[GLM-4V-Flash] GitHub上传异常: {e}")
@@ -168,29 +166,41 @@ class ZhipuAIClient:
             for var, value in original_proxies.items():
                 os.environ[var] = value
 
-    def _upload_image_to_url(self, image_path: str) -> Optional[str]:
-        """将图片上传到URL服务 - 优先使用GitHub"""
+    def _get_streamlit_file_url(self, uploaded_file) -> Optional[str]:
+        """获取Streamlit文件的可访问URL"""
         try:
-            print(f"[GLM-4V-Flash] 开始上传图片获取URL: {image_path}")
+            print(f"[GLM-4V-Flash] 构造Streamlit文件URL")
             
-            # 方案1: 使用GitHub作为图床
-            github_url = self._upload_image_to_github(image_path)
-            if github_url:
-                return github_url
+            # Streamlit文件访问格式: /_stcore/uploaded_files/{file_id}/{filename}
+            if hasattr(uploaded_file, 'file_id') and uploaded_file.file_id:
+                # 获取当前Streamlit服务器地址
+                import streamlit as st
+                
+                # 尝试从环境或配置获取服务器地址
+                server_url = "http://localhost:8505"  # 本地开发默认
+                
+                # 如果是Streamlit Cloud部署环境
+                if hasattr(st.config, 'get_option'):
+                    try:
+                        server_port = st.config.get_option('server.port') or 8501
+                        server_url = f"http://localhost:{server_port}"
+                    except:
+                        pass
+                
+                # 构造文件URL
+                file_url = f"{server_url}/_stcore/uploaded_files/{uploaded_file.file_id}/{uploaded_file.name}"
+                print(f"[GLM-4V-Flash] 构造的文件URL: {file_url}")
+                return file_url
             
-            # 方案2: 如果GitHub失败，使用真实的英语测试图片
-            print(f"[GLM-4V-Flash] GitHub上传失败，使用备用测试图片URL")
-            fallback_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/English_alphabet.png/800px-English_alphabet.png"
-            print(f"[GLM-4V-Flash] 备用图片URL (英语字母表): {fallback_url}")
-            
-            return fallback_url
+            print(f"[GLM-4V-Flash] uploaded_file没有file_id属性")
+            return None
                     
         except Exception as e:
-            print(f"[GLM-4V-Flash] 图片上传异常: {e}")
-            logging.error(f"图片上传失败: {e}")
+            print(f"[GLM-4V-Flash] 构造文件URL异常: {e}")
+            logging.error(f"构造文件URL失败: {e}")
             return None
     
-    def recognize_image_text(self, image_path: str, context: str = "英语教材内容") -> Dict:
+    def recognize_image_text(self, image_input, context: str = "英语教材内容", uploaded_file=None) -> Dict:
         """
         使用GLM-4V-Flash识别图片中的文字
         
@@ -224,10 +234,20 @@ class ZhipuAIClient:
 
 请直接返回识别出的英语文字内容，不需要额外的解释。"""
 
-            # 上传图像到URL服务
-            image_url = self._upload_image_to_url(image_path)
+            # 获取图像URL - 优先使用Streamlit上传文件URL
+            image_url = None
+            if uploaded_file:
+                # 如果有Streamlit上传文件，直接构造URL
+                image_url = self._get_streamlit_file_url(uploaded_file)
+                print(f"[GLM-4V-Flash] 使用Streamlit文件URL: {image_url}")
+            
             if not image_url:
-                error_msg = f'图像上传失败: {image_path}'
+                # 如果没有Streamlit文件或构造失败，回退到GitHub上传
+                print(f"[GLM-4V-Flash] 回退到GitHub上传方案")
+                image_url = self._upload_image_to_github(image_input)
+            
+            if not image_url:
+                error_msg = f'无法获取图像URL: {image_input}'
                 print(f"[GLM-4V-Flash] 错误: {error_msg}")
                 return {
                     'success': False,
