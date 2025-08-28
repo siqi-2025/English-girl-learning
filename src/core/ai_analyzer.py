@@ -258,10 +258,10 @@ class ZhipuAIClient:
 
             print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
 
-            # 构建消息 - 按照官方文档格式：image_url在前，text在后
+            # 构建消息 - 按照用户提供的参考代码格式
             messages = [
                 {
-                    "role": "user",
+                    "role": "user", 
                     "content": [
                         {
                             "type": "image_url",
@@ -278,15 +278,17 @@ class ZhipuAIClient:
             ]
             
             print(f"[GLM-4V-Flash] 调用API，模型: {self.vision_model}")
+            print(f"[GLM-4V-Flash] 图像URL: {image_url}")
+            print(f"[GLM-4V-Flash] 消息格式: {json.dumps(messages, ensure_ascii=False, indent=2)}")
             
-            # 调用GLM-4V-Flash API - 按照参考代码格式
+            # 调用GLM-4V-Flash API - 严格按照用户参考代码格式
             response = self.client.chat.completions.create(
                 model=self.vision_model,  # "glm-4v-flash"
                 messages=messages,
                 top_p=0.7,
-                temperature=0.95,  # 按照参考代码使用0.95
-                max_tokens=1024,   # 按照参考代码使用1024
-                stream=False       # 确保非流式
+                temperature=0.95,
+                max_tokens=1024,
+                stream=False
             )
             
             print(f"[GLM-4V-Flash] API调用完成")
