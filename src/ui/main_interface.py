@@ -268,24 +268,70 @@ class EnglishLearningInterface:
         result_container = st.container()
         
         for i, image_path in enumerate(image_files):
-            status_text.text(f"正在处理: {image_path.name} ({i+1}/{len(image_files)})")
+            # 详细处理步骤日志
+            status_text.text(f"📁 正在处理文件: {image_path.name} ({i+1}/{len(image_files)})")
             
             try:
-                # OCR处理
+                # 步骤1: OCR处理 - 云端手动输入模式
+                status_text.text(f"🔍 步骤1: 图像预处理 - {image_path.name}")
                 ocr_result = self.ocr_processor.process_image(
                     str(image_path),
                     enhance=settings['enhance_image']
                 )
                 
-                # AI增强处理
+                # 检查是否为云端模式，需要手动输入
+                if ocr_result.get('fallback_mode', False):
+                    status_text.text(f"✋ 需要手动输入文本 - {image_path.name}")
+                    
+                    # 显示图像预览
+                    from PIL import Image
+                    image = Image.open(image_path)
+                    st.image(image, caption=f"图像预览: {image_path.name}", width=400)
+                    
+                    # 手动输入文本框
+                    manual_text = st.text_area(
+                        f"请输入图片 {image_path.name} 中的英语文本：",
+                        height=150,
+                        key=f"manual_input_{i}",
+                        help="请仔细输入图片中的英语内容，系统将进行AI分析和文档生成"
+                    )
+                    
+                    if not manual_text.strip():
+                        st.warning("⚠️ 请输入图片中的文本内容后继续处理")
+                        continue
+                    
+                    # 更新OCR结果
+                    ocr_result = {
+                        'success': True,
+                        'raw_text': manual_text,
+                        'confidence': 0.95,  # 手动输入假设高置信度
+                        'details': [{
+                            'text': manual_text,
+                            'confidence': 0.95,
+                            'bbox': [[0, 0], [100, 0], [100, 20], [0, 20]]
+                        }],
+                        'line_count': len(manual_text.split('\n')),
+                        'manual_input': True
+                    }
+                
+                # 步骤2: AI增强处理
                 if ocr_result['success']:
+                    status_text.text(f"🤖 步骤2: AI分析和增强 - {image_path.name}")
+                    time.sleep(0.5)  # 让用户看到处理步骤
                     enhanced_result = self.ai_ocr.process_image_with_ai(
                         ocr_result, f"英语教材 - {image_path.name}"
                     )
+                    
+                    # 步骤3: 整理结果
+                    status_text.text(f"📝 步骤3: 整理和分类内容 - {image_path.name}")
                     enhanced_result['filename'] = image_path.name
                     enhanced_result['filepath'] = str(image_path)
                     results.append(enhanced_result)
                     st.session_state.processed_count += 1
+                    
+                    # 步骤4: 显示完成状态
+                    status_text.text(f"✅ 完成处理: {image_path.name}")
+                    time.sleep(0.3)
                     
                     # 实时显示处理结果
                     with result_container:
@@ -352,8 +398,29 @@ class EnglishLearningInterface:
             st.metric("总文本长度", f"{total_text:,}")
         
         # 结果展示选项
+        st.markdown("### 📊 结果展示选项")
+        
+        # 添加模式说明
+        with st.expander("📖 模式说明", expanded=False):
+            st.markdown("""
+            **🔍 概览模式**：快速查看所有处理文件的基本信息
+            - 显示识别文本预览（前200字符）
+            - 显示AI分析的基本信息（标题、类型、词汇数等）
+            - 适合快速浏览多个文件的处理结果
+            
+            **📋 详细模式**：查看单个文件的完整处理结果
+            - 显示完整的识别文本内容
+            - 显示详细的AI分析结果（词汇表、语法点、练习题等）
+            - 适合深入了解特定文件的内容
+            
+            **📄 文档生成**：将处理结果生成学习文档
+            - 生成结构化的Markdown学习文档
+            - 包含课文内容、词汇表、语法点和练习题
+            - 支持下载保存到本地
+            """)
+        
         view_mode = st.radio(
-            "结果显示模式：",
+            "选择显示模式：",
             ["概览模式", "详细模式", "文档生成"],
             horizontal=True
         )
@@ -555,8 +622,38 @@ class EnglishLearningInterface:
                     st.success(f"✅ 成功生成 {len(generated_files)} 个文档！")
                     st.session_state.generated_docs += len(generated_files)
                     
+                    # 添加下载功能
+                    st.markdown("### 📥 下载生成的文档")
+                    
                     for file_path in generated_files:
-                        st.markdown(f"- 📄 {file_path}")
+                        if os.path.exists(file_path):
+                            filename = os.path.basename(file_path)
+                            
+                            # 读取文件内容
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                file_content = f.read()
+                            
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.markdown(f"📄 **{filename}**")
+                                # 显示文件预览
+                                with st.expander(f"预览 {filename}"):
+                                    if filename.endswith('.md'):
+                                        st.markdown(file_content)
+                                    else:
+                                        st.text(file_content)
+                            
+                            with col2:
+                                # 添加下载按钮
+                                st.download_button(
+                                    label="💾 下载",
+                                    data=file_content,
+                                    file_name=filename,
+                                    mime="text/markdown" if filename.endswith('.md') else "text/plain",
+                                    key=f"download_{filename}"
+                                )
+                        else:
+                            st.warning(f"⚠️ 文件不存在: {file_path}")
                 
             except Exception as e:
                 st.error(f"文档生成失败: {e}")
