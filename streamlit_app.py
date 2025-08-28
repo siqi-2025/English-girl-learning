@@ -44,17 +44,21 @@ def check_environment():
             'solution': '请设置环境变量 ENGLISH_LEARNING_ZHIPU_API_KEY'
         })
     
-    # 检查PaddleOCR
+    # 检查PaddleOCR（云端版本使用备用方案）
     try:
-        import paddleocr
-        ocr_version = getattr(paddleocr, '__version__', '未知')
-        st.sidebar.success(f"PaddleOCR版本: {ocr_version}")
+        import importlib.util
+        paddleocr_spec = importlib.util.find_spec("paddleocr")
+        if paddleocr_spec is not None:
+            # 延迟导入避免触发自动安装
+            paddleocr = importlib.import_module("paddleocr")
+            ocr_version = getattr(paddleocr, '__version__', '未知')
+            st.sidebar.success(f"PaddleOCR版本: {ocr_version}")
+        else:
+            raise ImportError("PaddleOCR not available")
     except ImportError:
-        issues.append({
-            'type': 'error',
-            'message': 'PaddleOCR未安装',
-            'solution': '运行命令: pip install paddleocr==3.1.0'
-        })
+        # 云端模式：使用备用OCR方案
+        st.sidebar.info("🌐 云端模式：使用AI增强文本分析（手动输入）")
+        st.sidebar.markdown("*完整OCR功能可在本地环境使用*")
     
     # 检查OpenCV
     try:
