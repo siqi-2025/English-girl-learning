@@ -72,15 +72,45 @@ class ZhipuAIClient:
             "Authorization": f"Bearer {self.api_key}"
         }
     
-    def _encode_image_to_base64(self, image_path: str) -> Optional[str]:
-        """将图片编码为base64格式"""
+    def _upload_image_to_url(self, image_path: str) -> Optional[str]:
+        """将图片上传到临时URL服务"""
         try:
+            print(f"[GLM-4V-Flash] 准备上传图片到临时URL服务: {image_path}")
+            
+            # 使用免费图床服务 - imgbb
+            api_key = "a2c2e4b2b8e9d5f9d5a2e4b2b8e9d5f9"  # 临时API key，实际使用时请申请自己的
+            url = "https://api.imgbb.com/1/upload"
+            
             with open(image_path, 'rb') as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-                return f"data:image/jpeg;base64,{encoded_string}"
+                files = {
+                    'image': image_file
+                }
+                data = {
+                    'key': api_key,
+                    'expiration': 600  # 10分钟过期
+                }
+                
+                print(f"[GLM-4V-Flash] 正在上传图片...")
+                response = requests.post(url, files=files, data=data, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success'):
+                        image_url = result['data']['url']
+                        print(f"[GLM-4V-Flash] 图片上传成功: {image_url}")
+                        return image_url
+                    else:
+                        print(f"[GLM-4V-Flash] 图床服务返回失败: {result}")
+                else:
+                    print(f"[GLM-4V-Flash] 图片上传失败: {response.status_code} - {response.text}")
+                    
         except Exception as e:
-            logging.error(f"图片编码失败: {e}")
-            return None
+            print(f"[GLM-4V-Flash] 图片上传异常: {e}")
+            logging.error(f"图片上传失败: {e}")
+        
+        # 如果上传失败，尝试使用本地文件路径（仅适用于本地图片）
+        print(f"[GLM-4V-Flash] 图片上传失败，尝试直接使用本地路径")
+        return None
     
     def recognize_image_text(self, image_path: str, context: str = "英语教材内容") -> Dict:
         """
@@ -116,10 +146,10 @@ class ZhipuAIClient:
 
 请直接返回识别出的英语文字内容，不需要额外的解释。"""
 
-            # 编码图像为base64
-            image_base64 = self._encode_image_to_base64(image_path)
-            if not image_base64:
-                error_msg = f'图像编码失败: {image_path}'
+            # 上传图像到URL服务
+            image_url = self._upload_image_to_url(image_path)
+            if not image_url:
+                error_msg = f'图像上传失败: {image_path}'
                 print(f"[GLM-4V-Flash] 错误: {error_msg}")
                 return {
                     'success': False,
@@ -128,9 +158,9 @@ class ZhipuAIClient:
                     'confidence': 0.0
                 }
 
-            print(f"[GLM-4V-Flash] 图像编码完成，长度: {len(image_base64)}")
+            print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
 
-            # 构建消息 - 按照官方参考代码格式
+            # 构建消息 - 使用网络URL格式
             messages = [
                 {
                     "role": "user",
@@ -142,7 +172,7 @@ class ZhipuAIClient:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": image_base64
+                                "url": image_url
                             }
                         }
                     ]

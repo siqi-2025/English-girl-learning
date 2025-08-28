@@ -24,12 +24,20 @@ def test_glm4v_flash():
     api_key = "17e5feb32ed94b66823c9f9e0f188752.XOQDn1kygRTltwfD"
     
     print(f"[测试] 初始化GLM-4V-Flash客户端")
-    client = ZhipuAI(api_key=api_key)
     
-    # 测试用的提示词
-    test_prompt = "请仔细描述这个图片中的所有英语文字内容。"
+    try:
+        client = ZhipuAI(api_key=api_key)
+        print(f"[测试] 客户端初始化成功")
+    except Exception as e:
+        print(f"[测试] 客户端初始化失败: {e}")
+        return False
     
-    # 创建一个测试用的小图片（如果没有真实图片）
+    # 测试用的提示词 - 简化提示
+    test_prompt = "请仔细描述这个图片"
+    
+    # 使用一个简单的测试图片URL
+    test_image_url = "https://pic1.zhimg.com/80/v2-5b2b7c2e5e4f4b4a3c7b6a4e9d8c8a4e_720w.webp"
+    
     test_messages = [
         {
             "role": "user", 
@@ -41,7 +49,7 @@ def test_glm4v_flash():
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": "https://img1.baidu.com/it/u=1369931113,3388870256&fm=253&app=138&size=w931&n=0&f=JPEG&fmt=auto"
+                        "url": test_image_url
                     }
                 }
             ]
