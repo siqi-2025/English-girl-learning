@@ -415,45 +415,25 @@ class EnglishLearningInterface:
         st.markdown("### 📁 上传文件列表")
         
         for i, uploaded_file in enumerate(uploaded_files):
-            # 使用GitHub图床（最可靠的外部访问方案）
+            # 只使用GitHub图床
             image_url = self._upload_to_github_and_get_url(uploaded_file)
             
-            # 显示文件信息和图片对比
+            # 显示文件信息
             st.markdown(f"#### {i+1}. {uploaded_file.name}")
             
             col1, col2 = st.columns(2)
             with col1:
                 st.write(f"📊 **大小**: {uploaded_file.size:,} bytes")
-                st.write(f"🔗 **构造URL**: `{image_url if image_url else '生成失败'}`")
+                st.write(f"🔗 **GitHub URL**: `{image_url if image_url else '生成失败'}`")
                 if image_url:
-                    st.write("✅ URL已生成")
+                    st.write("✅ GitHub图床上传成功")
                 else:
-                    st.write("❌ URL生成失败")
+                    st.write("❌ GitHub图床上传失败")
             
             with col2:
-                # 显示图片并获取实际URL进行对比
-                st.write("**🖼️ 实际图片显示:**")
-                st.image(uploaded_file, caption=f"实际显示: {uploaded_file.name}", width=200)
-                
-                # 尝试获取图片的实际媒体URL
-                try:
-                    # 使用Streamlit内部方法获取真实URL
-                    import streamlit.elements.image as st_image
-                    actual_url = st_image.image_to_url(uploaded_file.getvalue())
-                    st.write(f"🎯 **实际URL**: `{actual_url}`")
-                    
-                    # 比较URL
-                    if image_url and actual_url:
-                        if image_url == actual_url:
-                            st.success("✅ URL匹配！")
-                        else:
-                            st.error("❌ URL不匹配！")
-                            st.write("**差异分析**:")
-                            st.write(f"- 构造的: `{image_url}`")
-                            st.write(f"- 实际的: `{actual_url}`")
-                except Exception as e:
-                    st.write(f"⚠️ 无法获取实际URL: {e}")
-                    st.write("💡 **对比说明**: 右键图片查看实际URL")
+                # 显示图片
+                st.write("**🖼️ 图片预览:**")
+                st.image(uploaded_file, caption=f"{uploaded_file.name}", width=200)
             
             # 记录结果（包含URL）
             results.append({
@@ -480,60 +460,7 @@ class EnglishLearningInterface:
         st.info("💡 文件已准备就绪。点击'开始AI识别处理'按钮进行处理。")
         return {'results': results, 'source': 'upload_display_only'}
     
-    def _save_file_to_static_and_get_url(self, uploaded_file) -> Optional[str]:
-        """将上传文件保存到static目录并生成可访问URL"""
-        try:
-            import os
-            import uuid
-            import time
-            from pathlib import Path
-            
-            # 确保static目录存在
-            project_root = Path(__file__).parent.parent.parent  # 回到项目根目录
-            static_dir = project_root / "static"
-            static_dir.mkdir(exist_ok=True)
-            
-            print(f"[Static保存] 项目根目录: {project_root}")
-            print(f"[Static保存] Static目录: {static_dir}")
-            
-            # 生成唯一文件名
-            timestamp = int(time.time())
-            file_extension = uploaded_file.name.split('.')[-1] if '.' in uploaded_file.name else 'jpg'
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"upload_{timestamp}_{unique_id}.{file_extension}"
-            
-            # 完整文件路径
-            file_path = static_dir / filename
-            
-            # 保存文件
-            with open(file_path, 'wb') as f:
-                f.write(uploaded_file.getvalue())
-            
-            print(f"[Static保存] ✅ 文件已保存: {file_path}")
-            print(f"[Static保存] 文件大小: {os.path.getsize(file_path)} bytes")
-            
-            # 生成URL
-            # 检测运行环境
-            is_cloud = self._detect_cloud_environment()
-            
-            if is_cloud:
-                base_url = "https://engirl.streamlit.app"
-            else:
-                base_url = "http://localhost:8501"  # 本地默认端口
-            
-            # 构造静态文件URL
-            static_url = f"{base_url}/static/{filename}"
-            
-            print(f"[Static保存] ✅ 生成的静态URL: {static_url}")
-            print(f"[Static保存] URL组成:")
-            print(f"  - 基础URL: {base_url}")
-            print(f"  - 静态路径: /static/{filename}")
-            
-            return static_url
-            
-        except Exception as e:
-            print(f"[Static保存] ❌ 保存文件失败: {e}")
-            return None
+    # 删除此方法 - 不再使用静态文件保存
     
     def _detect_cloud_environment(self) -> bool:
         """检测是否在云环境中运行"""
@@ -561,139 +488,9 @@ class EnglishLearningInterface:
         print(f"[环境检测] 检测到本地环境")
         return False
     
-    def _get_real_streamlit_media_url(self, uploaded_file) -> Optional[str]:
-        """获取Streamlit的真实媒体URL"""
-        try:
-            print(f"[媒体URL] 开始获取Streamlit真实媒体URL")
-            
-            # 方法1: 使用streamlit.elements.image.image_to_url
-            try:
-                import streamlit.elements.image as st_image
-                media_url = st_image.image_to_url(uploaded_file.getvalue())
-                print(f"[媒体URL] ✅ 通过image_to_url获取: {media_url}")
-                return media_url
-            except Exception as e:
-                print(f"[媒体URL] image_to_url方法失败: {e}")
-            
-            # 方法2: 尝试其他Streamlit内部方法
-            try:
-                import streamlit.runtime.media_file_manager as media_mgr
-                # 这需要进一步研究Streamlit内部API
-                print(f"[媒体URL] 尝试media_file_manager方法...")
-            except Exception as e:
-                print(f"[媒体URL] media_file_manager方法不可用: {e}")
-            
-            # 方法3: 检查uploaded_file的内部属性
-            try:
-                print(f"[媒体URL] 检查uploaded_file的所有属性:")
-                attrs = dir(uploaded_file)
-                for attr in attrs:
-                    if 'url' in attr.lower() or 'path' in attr.lower() or 'id' in attr.lower():
-                        try:
-                            value = getattr(uploaded_file, attr)
-                            print(f"[媒体URL]   {attr}: {value}")
-                        except:
-                            print(f"[媒体URL]   {attr}: <无法获取>")
-            except Exception as e:
-                print(f"[媒体URL] 属性检查失败: {e}")
-            
-            print(f"[媒体URL] ❌ 无法获取真实媒体URL")
-            return None
-            
-        except Exception as e:
-            print(f"[媒体URL] ❌ 获取媒体URL异常: {e}")
-            return None
+    # 删除此方法 - 不再使用Streamlit媒体URL
     
-    def _save_to_static_and_get_correct_url(self, uploaded_file) -> Optional[str]:
-        """根据官方文档保存文件到static目录并生成正确的URL"""
-        try:
-            import os
-            import uuid
-            import time
-            from pathlib import Path
-            
-            print(f"[官方静态] 开始保存文件到static目录")
-            
-            # 确保static目录存在（相对于app根目录）
-            project_root = Path(__file__).parent.parent.parent  # 回到项目根目录
-            static_dir = project_root / "static"
-            static_dir.mkdir(exist_ok=True)
-            
-            print(f"[官方静态] 项目根目录: {project_root}")
-            print(f"[官方静态] Static目录: {static_dir}")
-            
-            # 生成唯一文件名
-            timestamp = int(time.time())
-            file_extension = uploaded_file.name.split('.')[-1] if '.' in uploaded_file.name else 'jpg'
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"upload_{timestamp}_{unique_id}.{file_extension}"
-            
-            # 完整文件路径
-            file_path = static_dir / filename
-            
-            # 保存文件
-            with open(file_path, 'wb') as f:
-                f.write(uploaded_file.getvalue())
-            
-            print(f"[官方静态] ✅ 文件已保存: {file_path}")
-            print(f"[官方静态] 文件大小: {os.path.getsize(file_path)} bytes")
-            
-            # 验证文件确实存在并可读
-            if os.path.exists(file_path) and os.path.isfile(file_path):
-                print(f"[官方静态] ✅ 文件验证通过")
-                # 在Streamlit界面显示保存状态
-                import streamlit as st
-                st.success(f"📁 文件已保存到: static/{filename}")
-                st.info(f"📊 文件大小: {os.path.getsize(file_path):,} bytes")
-            else:
-                print(f"[官方静态] ❌ 文件保存失败")
-                return None
-            
-            # 生成正确的URL格式
-            # 根据官方文档：Files are served at app/static/[filename]
-            is_cloud = self._detect_cloud_environment()
-            
-            if is_cloud:
-                base_url = "https://engirl.streamlit.app"
-            else:
-                base_url = "http://localhost:8501"
-            
-            # 使用正确的官方URL格式: /app/static/filename
-            correct_url = f"{base_url}/app/static/{filename}"
-            
-            print(f"[官方静态] ✅ 正确的官方URL: {correct_url}")
-            print(f"[官方静态] URL格式说明:")
-            print(f"  - 基础URL: {base_url}")
-            print(f"  - 官方路径: /app/static/{filename}")
-            
-            # 创建一个测试HTML文件来验证静态服务是否工作
-            test_html_content = f'''<!DOCTYPE html>
-<html>
-<head><title>Static File Test</title></head>
-<body>
-<h1>Static file serving is working!</h1>
-<p>Image file: {filename}</p>
-<p>Generated at: {time.time()}</p>
-</body>
-</html>'''
-            
-            test_html_path = static_dir / f"test_{unique_id}.html"
-            try:
-                with open(test_html_path, 'w', encoding='utf-8') as f:
-                    f.write(test_html_content)
-                test_html_url = f"{base_url}/app/static/test_{unique_id}.html"
-                print(f"[官方静态] 🧪 创建测试HTML: {test_html_url}")
-                
-                import streamlit as st
-                st.info(f"🧪 测试HTML: [点击查看]({test_html_url})")
-            except Exception as e:
-                print(f"[官方静态] ⚠️ 测试HTML创建失败: {e}")
-            
-            return correct_url
-            
-        except Exception as e:
-            print(f"[官方静态] ❌ 保存文件失败: {e}")
-            return None
+    # 删除此方法 - 不再使用静态文件保存
     
     def _upload_to_github_and_get_url(self, uploaded_file) -> Optional[str]:
         """上传文件到GitHub并获取真实的访问URL"""
@@ -736,22 +533,9 @@ class EnglishLearningInterface:
                 st.info(f"🔗 GitHub URL: {github_url}")
                 return github_url
             else:
-                print(f"[GitHub图床] ❌ GitHub上传失败，尝试使用Streamlit内部URL")
+                print(f"[GitHub图床] ❌ GitHub上传失败")
                 import streamlit as st
-                st.warning("❌ GitHub图床上传失败，尝试备选方案...")
-                
-                # 备选方案1: 使用streamlit内部image_to_url
-                try:
-                    import streamlit.elements.image as st_image
-                    media_url = st_image.image_to_url(uploaded_file.getvalue())
-                    if media_url:
-                        print(f"[GitHub图床] ✅ 备选方案成功: {media_url}")
-                        st.success(f"🔗 使用Streamlit媒体URL: {media_url}")
-                        return media_url
-                except Exception as e:
-                    print(f"[GitHub图床] 备选方案1失败: {e}")
-                    st.error(f"备选方案失败: {e}")
-                
+                st.error("❌ GitHub图床上传失败")
                 return None
                 
         except Exception as e:

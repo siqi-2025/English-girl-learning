@@ -99,7 +99,7 @@ class ZhipuAIClient:
             branch = "main"
             
             if not github_token:
-                print(f"[GLM-4V-Flash] ❌ 未配置GitHub token，跳过GitHub上传")
+                print(f"[GLM-4V-Flash] ERROR: 未配置GitHub token，跳过GitHub上传")
                 print(f"[GLM-4V-Flash] 💡 需要在Streamlit Cloud设置中添加GITHUB_TOKEN")
                 return None
             
@@ -108,10 +108,23 @@ class ZhipuAIClient:
             filename = f"temp_image_{timestamp}.jpg"
             file_path = f"temp_images/{filename}"
             
-            # 读取图片并转换为base64
-            with open(image_path, 'rb') as image_file:
-                image_data = image_file.read()
+            # 读取图片，转换为标准JPEG格式，然后编码
+            from PIL import Image
+            
+            # 先用PIL打开并转换为RGB模式，确保是标准JPEG
+            with Image.open(image_path) as img:
+                # 转换为RGB模式（移除透明通道等）
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                    print(f"[GLM-4V-Flash] 图片模式转换: {img.mode}")
+                
+                # 保存为临时JPEG文件
+                import io
+                img_buffer = io.BytesIO()
+                img.save(img_buffer, format='JPEG', quality=95)
+                image_data = img_buffer.getvalue()
                 encoded_content = base64.b64encode(image_data).decode('utf-8')
+                print(f"[GLM-4V-Flash] 图片已转换为标准JPEG格式")
             
             print(f"[GLM-4V-Flash] 图片编码完成，大小: {len(encoded_content)} bytes")
             
@@ -168,89 +181,7 @@ class ZhipuAIClient:
             for var, value in original_proxies.items():
                 os.environ[var] = value
 
-    def _get_streamlit_file_url(self, uploaded_file) -> Optional[str]:
-        """获取Streamlit文件的可访问URL"""
-        try:
-            print(f"[GLM-4V-Flash] 开始构造Streamlit文件URL")
-            print(f"[GLM-4V-Flash] 文件信息 - 名称: {uploaded_file.name}, 类型: {uploaded_file.type}, 大小: {uploaded_file.size}")
-            
-            # Streamlit文件访问格式: /_stcore/uploaded_files/{file_id}/{filename}
-            if hasattr(uploaded_file, 'file_id') and uploaded_file.file_id:
-                print(f"[GLM-4V-Flash] 文件ID: {uploaded_file.file_id}")
-                
-                # 获取当前Streamlit服务器地址
-                import streamlit as st
-                
-                # 检测运行环境 - 修复localhost问题
-                import os
-                
-                # 检查多个Streamlit Cloud环境变量和请求头
-                is_cloud_env = False
-                
-                # 方法1: 环境变量检测
-                cloud_env_vars = [
-                    'STREAMLIT_SERVER_PORT',
-                    'STREAMLIT_CLOUD', 
-                    'HOSTNAME'
-                ]
-                
-                for var in cloud_env_vars:
-                    if var in os.environ:
-                        val = os.environ[var]
-                        if 'streamlit' in str(val).lower() or 'cloud' in str(val).lower():
-                            is_cloud_env = True
-                            print(f"[GLM-4V-Flash] 通过环境变量 {var}={val} 检测到云环境")
-                            break
-                
-                # 方法2: 通过Streamlit内部上下文检测
-                if not is_cloud_env:
-                    try:
-                        # 检查当前请求是否来自外部域名
-                        import streamlit.runtime.scriptrunner as sr
-                        ctx = sr.get_script_run_ctx()
-                        if ctx and hasattr(ctx, 'session_info'):
-                            # 如果能获取到session信息，很可能是云环境
-                            is_cloud_env = True
-                            print(f"[GLM-4V-Flash] 通过Streamlit上下文检测到云环境")
-                    except:
-                        pass
-                
-                if is_cloud_env:
-                    # Streamlit Cloud环境 - 使用公网地址
-                    server_url = "https://engirl.streamlit.app"
-                    print(f"[GLM-4V-Flash] 检测到Streamlit Cloud环境，使用公网地址")
-                else:
-                    # 本地环境 - 但GLM-4V-Flash无法访问localhost，强制使用GitHub上传
-                    print(f"[GLM-4V-Flash] 本地环境检测，GLM-4V-Flash无法访问localhost")
-                    print(f"[GLM-4V-Flash] 将回退到GitHub图床上传方案")
-                    return None  # 返回None强制使用GitHub上传
-                
-                # 构造文件URL
-                file_url = f"{server_url}/_stcore/uploaded_files/{uploaded_file.file_id}/{uploaded_file.name}"
-                
-                print(f"[GLM-4V-Flash] ✅ 构造的完整文件URL: {file_url}")
-                print(f"[GLM-4V-Flash] URL组成部分:")
-                print(f"  - 服务器地址: {server_url}")
-                print(f"  - 文件ID: {uploaded_file.file_id}")
-                print(f"  - 文件名: {uploaded_file.name}")
-                
-                # 同时在Streamlit界面显示URL信息
-                import streamlit as st
-                st.write(f"**🔗 构造的文件URL**: `{file_url}`")
-                st.write(f"**📊 URL组成部分**:")
-                st.write(f"- 服务器地址: `{server_url}`")
-                st.write(f"- 文件ID: `{uploaded_file.file_id}`") 
-                st.write(f"- 文件名: `{uploaded_file.name}`")
-                
-                return file_url
-            
-            print(f"[GLM-4V-Flash] ❌ uploaded_file没有file_id属性")
-            return None
-                    
-        except Exception as e:
-            print(f"[GLM-4V-Flash] ❌ 构造文件URL异常: {e}")
-            logging.error(f"构造文件URL失败: {e}")
-            return None
+    # 删除此方法 - 不再使用Streamlit文件URL
     
     def recognize_image_text(self, image_input, context: str = "英语教材内容", uploaded_file=None) -> Dict:
         """
@@ -276,15 +207,8 @@ class ZhipuAIClient:
             }
         
         try:
-            # 准备视觉识别的提示词
-            vision_prompt = f"""请仔细识别这张{context}图片中的所有英语文字内容，要求：
-
-1. **完整识别**：识别图片中所有可见的英语文字，包括标题、正文、注释等
-2. **保持格式**：尽量保持原始的段落结构和换行
-3. **准确性**：确保拼写和语法的准确性
-4. **完整性**：不要遗漏任何文字内容
-
-请直接返回识别出的英语文字内容，不需要额外的解释。"""
+            # 简化提示词，避免过于复杂导致API错误
+            vision_prompt = "Please identify and extract all English text visible in this image. Return only the text content without any explanation."
 
             # GLM-4V-Flash处理图片URL
             print(f"[GLM-4V-Flash] 开始准备图片URL，输入类型: {type(image_input)}")
@@ -302,7 +226,7 @@ class ZhipuAIClient:
                 if image_input.startswith(('http://', 'https://')):
                     # 直接使用URL（静态文件URL）
                     image_url = image_input
-                    print(f"[GLM-4V-Flash] ✅ 使用静态URL: {image_url}")
+                    print(f"[GLM-4V-Flash] SUCCESS: 使用静态URL: {image_url}")
                     st.info(f"🔗 使用静态文件URL进行AI识别")
                 else:
                     # 本地文件路径，尝试上传到GitHub
@@ -311,7 +235,7 @@ class ZhipuAIClient:
                     
                     if not image_url:
                         error_msg = f'无法处理本地文件路径: {image_input}'
-                        print(f"[GLM-4V-Flash] ❌ {error_msg}")
+                        print(f"[GLM-4V-Flash] ERROR: {error_msg}")
                         return {
                             'success': False,
                             'error': error_msg,
@@ -334,30 +258,23 @@ class ZhipuAIClient:
                 image_url = self._upload_image_to_github(temp_file_path)
                 
                 if image_url:
-                    print(f"[GLM-4V-Flash] ✅ GitHub上传成功: {image_url}")
-                    st.success(f"✅ 图片已上传到GitHub图床")
+                    print(f"[GLM-4V-Flash] SUCCESS: GitHub上传成功: {image_url}")
+                    st.success(f"图片已上传到GitHub图床")
                     st.write(f"**📊 图像URL**: {image_url}")
                 else:
-                    # GitHub上传失败，尝试构造Streamlit URL
-                    print(f"[GLM-4V-Flash] GitHub上传失败，尝试Streamlit URL")
-                    image_url = self._get_streamlit_file_url(uploaded_file)
-                    
-                    if image_url:
-                        print(f"[GLM-4V-Flash] ✅ Streamlit URL构造成功: {image_url}")
-                        st.warning(f"⚠️ 使用Streamlit临时URL（可能无法在云端访问）")
-                    else:
-                        error_msg = '无法获取可访问的图片URL'
-                        print(f"[GLM-4V-Flash] ❌ {error_msg}")
-                        return {
-                            'success': False,
-                            'error': error_msg,
-                            'raw_text': '',
-                            'confidence': 0.0
-                        }
+                    # GitHub上传失败
+                    error_msg = 'GitHub图床上传失败，无法处理图片'
+                    print(f"[GLM-4V-Flash] ERROR: {error_msg}")
+                    return {
+                        'success': False,
+                        'error': error_msg,
+                        'raw_text': '',
+                        'confidence': 0.0
+                    }
                     
             else:
                 error_msg = f'不支持的图像输入格式: {type(image_input)}'
-                print(f"[GLM-4V-Flash] ❌ {error_msg}")
+                print(f"[GLM-4V-Flash] ERROR: {error_msg}")
                 return {
                     'success': False,
                     'error': error_msg,
@@ -367,20 +284,24 @@ class ZhipuAIClient:
 
             print(f"[GLM-4V-Flash] 图像URL准备完成: {image_url}")
 
-            # 构建消息 - 按照用户提供的参考代码格式
+            # 构建消息 - 严格按照官方API格式
             messages = [
+                {
+                    "role": "system",
+                    "content": "You are a professional OCR assistant specialized in recognizing English educational content."
+                },
                 {
                     "role": "user", 
                     "content": [
+                        {
+                            "type": "text",
+                            "text": vision_prompt
+                        },
                         {
                             "type": "image_url",
                             "image_url": {
                                 "url": image_url
                             }
-                        },
-                        {
-                            "type": "text",
-                            "text": vision_prompt
                         }
                     ]
                 }
@@ -409,15 +330,15 @@ class ZhipuAIClient:
                 print(f"[GLM-4V-Flash] HTTP状态码: {test_response.status_code}")
                 
                 if test_response.status_code == 200:
-                    st.success(f"✅ URL可访问 (HTTP {test_response.status_code})")
+                    st.success(f"URL可访问 (HTTP {test_response.status_code})")
                     if final_url != image_url:
                         st.info(f"🔄 URL被重定向到: {final_url}")
                         # 更新image_url为最终URL
                         image_url = final_url
                         print(f"[GLM-4V-Flash] 更新为最终URL: {image_url}")
                 else:
-                    st.error(f"❌ URL返回错误: HTTP {test_response.status_code}")
-                    print(f"[GLM-4V-Flash] ❌ URL返回: HTTP {test_response.status_code}")
+                    st.error(f"URL返回错误: HTTP {test_response.status_code}")
+                    print(f"[GLM-4V-Flash] ERROR: URL返回: HTTP {test_response.status_code}")
                     
                     # 尝试不同的URL格式
                     st.warning("🔧 尝试其他URL格式...")
@@ -432,7 +353,7 @@ class ZhipuAIClient:
                             alt_response = requests.head(alt_url, timeout=5, allow_redirects=True)
                             print(f"[GLM-4V-Flash] 测试备选URL {alt_url}: HTTP {alt_response.status_code}")
                             if alt_response.status_code == 200:
-                                st.success(f"✅ 备选URL可用: {alt_url}")
+                                st.success(f"备选URL可用: {alt_url}")
                                 image_url = alt_response.url
                                 print(f"[GLM-4V-Flash] 使用备选URL: {image_url}")
                                 break
@@ -440,15 +361,15 @@ class ZhipuAIClient:
                             continue
                             
             except Exception as e:
-                st.error(f"❌ URL访问失败: {e}")
-                print(f"[GLM-4V-Flash] ❌ URL访问异常: {e}")
+                st.error(f"URL访问失败: {e}")
+                print(f"[GLM-4V-Flash] ERROR: URL访问异常: {e}")
             
-            # 调用GLM-4V-Flash API - 严格按照用户参考代码格式
+            # 调用GLM-4V-Flash API - 严格按照官方API格式
             response = self.client.chat.completions.create(
                 model=self.vision_model,  # "glm-4v-flash"
                 messages=messages,
-                top_p=0.7,
-                temperature=0.95,
+                top_p=0.6,  # 官方示例使用0.6
+                temperature=0.8,  # 官方示例使用0.8
                 max_tokens=1024,
                 stream=False
             )
