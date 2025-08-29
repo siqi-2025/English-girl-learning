@@ -6,9 +6,10 @@
 
 import streamlit as st
 import os
+import time
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Optional
-import time
 
 from ..core.vision_processor import create_vision_processor
 from ..core.ai_analyzer import create_ai_enhanced_ocr, test_ai_connection
@@ -20,10 +21,11 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.8.0"  # 修复API调用格式，简化图片处理
+        self.version = "v2.0.0"  # 现代化UI重设计，左右分栏布局
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
+        self.processed_results = []  # 存储处理结果
         print(f"[EnglishLearningInterface] 初始化界面 {self.version}")
         
     def setup_page_config(self):
@@ -98,46 +100,49 @@ class EnglishLearningInterface:
                 st.warning("⚠️ 请配置API密钥")
     
     def render_sidebar(self):
-        """渲染侧边栏"""
+        """渲染简化的侧边栏"""
         with st.sidebar:
-            st.markdown("### ⚙️ 系统配置")
+            st.markdown(f"### 🤖 英语学习助手 {self.version}")
             
-            # API密钥配置
-            st.markdown("#### 🔑 API设置")
+            # API状态检查
             current_key = config.get_api_key()
-            key_status = "✅ 已配置" if current_key else "❌ 未配置"
-            st.info(f"当前状态: {key_status}")
-            
-            if st.button("🔄 重新加载配置"):
-                st.experimental_rerun()
-            
-            st.markdown("---")
-            
-            # 视觉识别设置
-            st.markdown("#### 👁️ 视觉识别设置")
-            st.info("使用GLM-4V-Flash进行图像识别")
-            print("[UI] 显示视觉识别设置面板")
-            
-            # AI设置
-            st.markdown("#### 🤖 AI设置")
-            temperature = st.slider("生成温度", 0.1, 1.0, 0.7, 0.1)
-            max_tokens = st.slider("最大生成长度", 500, 4000, 2000, 100)
+            if current_key:
+                st.success("🔑 API已配置")
+            else:
+                st.error("❌ 需要配置API密钥")
+                st.code("设置环境变量: ENGLISH_LEARNING_ZHIPU_API_KEY")
             
             st.markdown("---")
-            st.markdown("### 📊 使用统计")
+            
+            # 使用统计
+            st.markdown("### 📊 本次会话统计")
             
             # 初始化session state
             if 'processed_count' not in st.session_state:
                 st.session_state.processed_count = 0
             if 'generated_docs' not in st.session_state:
                 st.session_state.generated_docs = 0
-                
-            st.metric("处理图片数", st.session_state.processed_count)
-            st.metric("生成文档数", st.session_state.generated_docs)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("已处理", st.session_state.processed_count)
+            with col2:
+                st.metric("已导出", st.session_state.generated_docs)
+            
+            st.markdown("---")
+            
+            # 关于信息
+            with st.expander("ℹ️ 关于", expanded=False):
+                st.markdown(f"""
+                **版本**: {self.version}  
+                **核心技术**: GLM-4V-Flash  
+                **图床**: GitHub  
+                **功能**: OCR文字识别
+                """)
             
             return {
-                'temperature': temperature,
-                'max_tokens': max_tokens
+                'temperature': 0.8,  # 固定参数
+                'max_tokens': 1024
             }
     
     def render_image_upload_section(self, settings: Dict):
@@ -407,57 +412,48 @@ class EnglishLearningInterface:
     
     def _display_uploaded_images(self, uploaded_files: List) -> Dict:
         """准备图片文件并提供AI处理选项"""
-        st.success(f"✅ 已上传 {len(uploaded_files)} 个文件")
-        
         results = []
         
-        # 简化显示：只显示文件列表和处理状态
-        st.markdown("### 📁 上传文件列表")
+        # 现代化简洁显示
+        with st.status("📤 正在上传图片到GitHub图床...", expanded=True) as status:
+            for i, uploaded_file in enumerate(uploaded_files):
+                st.write(f"处理 {uploaded_file.name}...")
+                
+                # 上传到GitHub图床
+                image_url = self._upload_to_github_and_get_url(uploaded_file)
+                
+                # 记录结果
+                results.append({
+                    'filename': uploaded_file.name,
+                    'size': uploaded_file.size,
+                    'type': uploaded_file.type,
+                    'url': image_url,
+                    'displayed': True,
+                    'success': image_url is not None
+                })
+            
+            status.update(label="✅ 上传完成", state="complete")
         
-        for i, uploaded_file in enumerate(uploaded_files):
-            # 只使用GitHub图床
-            image_url = self._upload_to_github_and_get_url(uploaded_file)
-            
-            # 显示文件信息
-            st.markdown(f"#### {i+1}. {uploaded_file.name}")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"📊 **大小**: {uploaded_file.size:,} bytes")
-                st.write(f"🔗 **GitHub URL**: `{image_url if image_url else '生成失败'}`")
-                if image_url:
-                    st.write("✅ GitHub图床上传成功")
-                else:
-                    st.write("❌ GitHub图床上传失败")
-            
-            with col2:
-                # 显示图片
-                st.write("**🖼️ 图片预览:**")
-                st.image(uploaded_file, caption=f"{uploaded_file.name}", width=200)
-            
-            # 记录结果（包含URL）
-            results.append({
-                'filename': uploaded_file.name,
-                'size': uploaded_file.size,
-                'type': uploaded_file.type,
-                'url': image_url,
-                'displayed': True
-            })
-        
-        # 添加AI处理按钮
-        st.markdown("---")
-        col1, col2 = st.columns(2)
+        # 显示上传结果摘要
+        successful_uploads = sum(1 for r in results if r.get('success'))
+        col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("🤖 开始AI识别处理", type="primary", use_container_width=True):
-                return self._process_images_with_ai(uploaded_files, results)
+            st.metric("总文件数", len(results))
         with col2:
-            if st.button("❌ 取消", type="secondary", use_container_width=True):
-                # 清理已上传的文件
-                self._cleanup_static_files(results)
-                st.warning("已取消并清理文件")
-                return None
+            st.metric("上传成功", successful_uploads)
+        with col3:
+            total_size = sum(r.get('size', 0) for r in results)
+            st.metric("总大小", f"{total_size//1024} KB")
         
-        st.info("💡 文件已准备就绪。点击'开始AI识别处理'按钮进行处理。")
+        if successful_uploads == 0:
+            st.error("❌ 没有文件上传成功，请检查网络连接或GitHub配置")
+            return None
+        
+        # 处理按钮
+        st.markdown("---")
+        if st.button("🤖 开始AI识别处理", type="primary", use_container_width=True):
+            return self._process_images_with_ai(uploaded_files, results)
+        
         return {'results': results, 'source': 'upload_display_only'}
     
     # 删除此方法 - 不再使用静态文件保存
@@ -526,17 +522,7 @@ class EnglishLearningInterface:
             except:
                 pass
             
-            if github_url:
-                print(f"[GitHub图床] ✅ 上传成功: {github_url}")
-                import streamlit as st
-                st.success(f"📤 已上传到GitHub图床")
-                st.info(f"🔗 GitHub URL: {github_url}")
-                return github_url
-            else:
-                print(f"[GitHub图床] ❌ GitHub上传失败")
-                import streamlit as st
-                st.error("❌ GitHub图床上传失败")
-                return None
+            return github_url
                 
         except Exception as e:
             print(f"[GitHub图床] ❌ 上传异常: {e}")
@@ -545,103 +531,70 @@ class EnglishLearningInterface:
             return None
     
     def _process_images_with_ai(self, uploaded_files: List, file_results: List[Dict]) -> Dict:
-        """使用AI处理图片并清理临时文件"""
-        st.markdown("### 🤖 AI识别处理中...")
-        
+        """使用AI处理图片"""
         # 初始化处理器
         if not self._initialize_processors():
             st.error("❌ 处理器初始化失败")
             return None
         
         processed_results = []
-        progress_bar = st.progress(0)
-        status_text = st.empty()
         
-        for i, (uploaded_file, file_info) in enumerate(zip(uploaded_files, file_results)):
-            status_text.text(f"🔍 正在处理: {uploaded_file.name}")
-            
-            try:
-                # 获取静态URL
-                static_url = file_info.get('url')
-                if not static_url:
-                    st.error(f"❌ 无法获取文件URL: {uploaded_file.name}")
+        with st.status("🤖 AI识别处理中...", expanded=True) as status:
+            for i, (uploaded_file, file_info) in enumerate(zip(uploaded_files, file_results)):
+                if not file_info.get('success'):  # 跳过上传失败的文件
                     continue
                 
-                print(f"\n[AI处理] ==================== 开始AI识别 ====================")
-                print(f"[AI处理] 📁 文件名: {uploaded_file.name}")
-                print(f"[AI处理] 🔗 静态URL: {static_url}")
-                print(f"[AI处理] 📊 文件大小: {uploaded_file.size} bytes")
+                st.write(f"🔍 处理: {uploaded_file.name}")
                 
-                # 调用GLM-4V-Flash进行识别
-                status_text.text(f"🔍 GLM-4V-Flash识别中: {uploaded_file.name}")
-                
-                # 使用静态URL调用AI识别
-                vision_result = self.vision_processor.process_image(static_url, uploaded_file=None)  # 传递URL而非文件
-                
-                print(f"[AI处理] ✅ GLM-4V-Flash处理完成")
-                print(f"[AI处理] 🎯 识别成功: {vision_result['success']}")
-                
-                if vision_result['success']:
-                    print(f"[AI处理] 📝 识别文本长度: {len(vision_result.get('raw_text', ''))} 字符")
+                try:
+                    static_url = file_info.get('url')
+                    if not static_url:
+                        continue
                     
-                    # AI增强处理
-                    status_text.text(f"🤖 AI分析增强中: {uploaded_file.name}")
-                    enhanced_result = self.ai_analyzer.process_image_with_ai(
-                        vision_result, f"英语教材 - {uploaded_file.name}"
-                    )
+                    # GLM-4V-Flash视觉识别
+                    vision_result = self.vision_processor.process_image(static_url, uploaded_file=None)
                     
-                    result = {
+                    if vision_result['success']:
+                        # AI增强处理
+                        enhanced_result = self.ai_analyzer.process_image_with_ai(
+                            vision_result, f"英语教材 - {uploaded_file.name}"
+                        )
+                        
+                        result = {
+                            'filename': uploaded_file.name,
+                            'static_url': static_url,
+                            'success': True,
+                            'vision_result': vision_result,
+                            'enhanced_result': enhanced_result
+                        }
+                        
+                        # 更新统计
+                        st.session_state.processed_count += 1
+                        
+                    else:
+                        result = {
+                            'filename': uploaded_file.name,
+                            'static_url': static_url,
+                            'success': False,
+                            'error': vision_result.get('error', '识别失败')
+                        }
+                    
+                    processed_results.append(result)
+                    
+                except Exception as e:
+                    processed_results.append({
                         'filename': uploaded_file.name,
-                        'static_url': static_url,
-                        'success': True,
-                        'vision_result': vision_result,
-                        'enhanced_result': enhanced_result,
-                        'file_path': self._get_static_file_path(static_url)  # 用于后续清理
-                    }
-                    
-                    st.success(f"✅ {uploaded_file.name} 处理完成")
-                    
-                else:
-                    print(f"[AI处理] ❌ 识别失败: {vision_result.get('error', '未知错误')}")
-                    result = {
-                        'filename': uploaded_file.name,
-                        'static_url': static_url,
+                        'static_url': file_info.get('url'),
                         'success': False,
-                        'error': vision_result.get('error', '识别失败'),
-                        'file_path': self._get_static_file_path(static_url)
-                    }
-                    st.error(f"❌ {uploaded_file.name} 处理失败: {result['error']}")
-                
-                processed_results.append(result)
-                
-            except Exception as e:
-                error_msg = f"处理异常: {e}"
-                print(f"[AI处理] ❌ {error_msg}")
-                st.error(f"❌ {uploaded_file.name}: {error_msg}")
-                
-                processed_results.append({
-                    'filename': uploaded_file.name,
-                    'static_url': file_info.get('url'),
-                    'success': False,
-                    'error': error_msg,
-                    'file_path': self._get_static_file_path(file_info.get('url')) if file_info.get('url') else None
-                })
+                        'error': str(e)
+                    })
             
-            progress_bar.progress((i + 1) / len(uploaded_files))
+            status.update(label="✅ 处理完成", state="complete")
         
-        # 处理完成后清理临时文件
-        st.markdown("### 🧹 清理临时文件...")
-        cleanup_results = self._cleanup_static_files(processed_results)
-        
-        status_text.text("✅ 所有处理完成！")
-        
-        final_result = {
+        return {
             'results': processed_results,
-            'source': 'ai_processed',
-            'cleanup_summary': cleanup_results
+            'source': 'ai_processed'
         }
-        
-        return final_result
     
     def _get_static_file_path(self, static_url: str) -> Optional[str]:
         """从官方静态URL获取本地文件路径"""
@@ -755,88 +708,210 @@ class EnglishLearningInterface:
             return False
     
     def render_results_section(self, processing_results: Dict):
-        """渲染处理结果区域"""
+        """渲染处理结果区域 - 现代化左右分栏布局"""
         if not processing_results or not processing_results.get('results'):
             return
         
         results = processing_results['results']
         source = processing_results.get('source', 'unknown')
         
-        # 检查是否是纯显示模式
+        # 存储处理结果供后续使用
+        self.processed_results = results
+        
+        # 检查是否是纯显示模式（上传但未处理）
         if source == 'upload_display_only':
-            st.markdown("### 📊 图片上传统计")
-            
-            # 显示统计信息
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("上传文件数", len(results))
-            with col2:
-                total_size = sum(r.get('size', 0) for r in results)
-                st.metric("总大小", f"{total_size:,} bytes")
-            with col3:
-                image_types = set(r.get('type', '') for r in results)
-                st.metric("文件类型数", len(image_types))
-            with col4:
-                st.metric("显示状态", "✅ 全部显示")
-            
-            # 显示文件列表
-            st.markdown("### 📁 上传文件列表")
-            for i, result in enumerate(results):
-                st.write(f"{i+1}. **{result['filename']}** ({result['size']} bytes, {result['type']})")
-                
+            st.info("📋 图片已上传，点击 '🤖 开始AI识别处理' 按钮进行处理")
             return
         
-        # 原有的AI处理结果显示逻辑
-        st.markdown("### 📋 处理结果详情")
+        # 显示成功处理的结果
+        successful_results = [r for r in results if r.get('success', False)]
+        if not successful_results:
+            st.error("❌ 没有成功处理的图片")
+            return
         
-        # 统计信息
-        col1, col2, col3, col4 = st.columns(4)
+        # 现代化UI - 左右分栏布局
+        st.markdown("---")
+        
+        # 顶部工具栏
+        col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
-            st.metric("总文件数", len(results))
+            st.markdown("### 📋 处理结果")
         with col2:
-            successful = sum(1 for r in results if r.get('success'))
-            st.metric("成功处理", successful)
+            # 导出按钮
+            if st.button("📄 导出文本", type="primary", use_container_width=True):
+                self._export_all_text(successful_results)
         with col3:
-            avg_confidence = sum(r.get('confidence', 0) for r in results) / len(results) if results else 0
-            st.metric("平均置信度", f"{avg_confidence:.2f}")
-        with col4:
-            total_text = sum(len(r.get('corrected_text', '')) for r in results)
-            st.metric("总文本长度", f"{total_text:,}")
+            # 统计信息
+            st.metric("成功处理", len(successful_results), delta=f"共{len(results)}个")
         
-        # 结果展示选项
-        st.markdown("### 📊 结果展示选项")
+        # 左右分栏主要内容区域
+        left_col, right_col = st.columns([3, 2])
         
-        # 添加模式说明
-        with st.expander("📖 模式说明", expanded=False):
-            st.markdown("""
-            **🔍 概览模式**：快速查看所有处理文件的基本信息
-            - 显示识别文本预览（前200字符）
-            - 显示AI分析的基本信息（标题、类型、词汇数等）
-            - 适合快速浏览多个文件的处理结果
+        with left_col:
+            st.markdown("#### 📝 识别文本内容")
+            self._render_text_content(successful_results)
+        
+        with right_col:
+            st.markdown("#### 🖼️ 图片列表")
+            self._render_image_thumbnails(successful_results)
+    
+    def _render_text_content(self, results: List[Dict]):
+        """渲染左侧文本内容区域"""
+        if not results:
+            st.info("暂无文本内容")
+            return
+        
+        # 创建选择器让用户选择要查看的文件
+        if len(results) > 1:
+            selected_index = st.selectbox(
+                "选择文件:",
+                range(len(results)),
+                format_func=lambda x: f"{x+1}. {results[x].get('filename', f'文件{x+1}')}",
+                key="text_selector"
+            )
+        else:
+            selected_index = 0
+        
+        result = results[selected_index]
+        
+        # 显示文件信息
+        filename = result.get('filename', '未知文件')
+        st.markdown(f"**📄 当前文件**: {filename}")
+        
+        # 获取识别文本 - 优先显示增强结果
+        enhanced_result = result.get('enhanced_result', {})
+        vision_result = result.get('vision_result', {})
+        
+        # 获取文本内容
+        text_content = ""
+        if enhanced_result and enhanced_result.get('corrected_text'):
+            text_content = enhanced_result['corrected_text']
+            st.success("✨ AI增强文本")
+        elif vision_result and vision_result.get('raw_text'):
+            text_content = vision_result['raw_text']
+            st.info("🔍 原始识别文本")
+        else:
+            st.warning("⚠️ 暂无文本内容")
+            return
+        
+        # 显示文本内容
+        if text_content:
+            # 创建可滚动的文本区域
+            st.markdown("---")
+            st.text_area(
+                "识别文本:",
+                value=text_content,
+                height=400,
+                disabled=True,
+                key=f"text_content_{selected_index}"
+            )
             
-            **📋 详细模式**：查看单个文件的完整处理结果
-            - 显示完整的识别文本内容
-            - 显示详细的AI分析结果（词汇表、语法点、练习题等）
-            - 适合深入了解特定文件的内容
-            
-            **📄 文档生成**：将处理结果生成学习文档
-            - 生成结构化的Markdown学习文档
-            - 包含课文内容、词汇表、语法点和练习题
-            - 支持下载保存到本地
-            """)
+            # 显示文本统计信息
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("字符数", len(text_content))
+            with col2:
+                word_count = len(text_content.split()) if text_content else 0
+                st.metric("单词数", word_count)
+            with col3:
+                confidence = enhanced_result.get('confidence') or vision_result.get('confidence', 0)
+                st.metric("置信度", f"{confidence:.1%}")
+    
+    def _render_image_thumbnails(self, results: List[Dict]):
+        """渲染右侧图片缩略图列表"""
+        if not results:
+            st.info("暂无图片")
+            return
         
-        view_mode = st.radio(
-            "选择显示模式：",
-            ["概览模式", "详细模式", "文档生成"],
-            horizontal=True
+        # 创建滚动容器
+        for i, result in enumerate(results):
+            filename = result.get('filename', f'文件{i+1}')
+            
+            # 创建图片卡片
+            with st.container():
+                st.markdown(f"**{i+1}. {filename}**")
+                
+                # 显示处理状态
+                success = result.get('success', False)
+                if success:
+                    st.success("✅ 处理成功", icon="✅")
+                else:
+                    error_msg = result.get('error', '未知错误')
+                    st.error(f"❌ 处理失败: {error_msg}", icon="❌")
+                
+                # 如果有GitHub URL，显示缩略图
+                github_url = result.get('static_url') or result.get('url')
+                if github_url and success:
+                    try:
+                        st.image(github_url, width=200, caption=filename)
+                    except Exception as e:
+                        st.error(f"图片加载失败: {e}")
+                
+                # 显示基本信息
+                if 'size' in result:
+                    st.caption(f"大小: {result['size']:,} bytes")
+                
+                st.markdown("---")
+    
+    def _export_all_text(self, results: List[Dict]):
+        """导出所有识别文本为一个文档"""
+        if not results:
+            st.warning("没有可导出的内容")
+            return
+        
+        # 收集所有文本
+        all_text = []
+        export_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        all_text.append(f"# 英语学习助手 - 文本识别结果")
+        all_text.append(f"**导出时间**: {export_time}")
+        all_text.append(f"**导出版本**: {self.version}")
+        all_text.append(f"**成功处理**: {len(results)} 个文件")
+        all_text.append("")
+        
+        for i, result in enumerate(results):
+            filename = result.get('filename', f'文件{i+1}')
+            all_text.append(f"## {i+1}. {filename}")
+            
+            # 获取文本内容
+            enhanced_result = result.get('enhanced_result', {})
+            vision_result = result.get('vision_result', {})
+            
+            if enhanced_result and enhanced_result.get('corrected_text'):
+                text_content = enhanced_result['corrected_text']
+                confidence = enhanced_result.get('confidence', 0)
+                all_text.append(f"**文本来源**: AI增强识别 (置信度: {confidence:.1%})")
+            elif vision_result and vision_result.get('raw_text'):
+                text_content = vision_result['raw_text']
+                confidence = vision_result.get('confidence', 0)
+                all_text.append(f"**文本来源**: 原始识别 (置信度: {confidence:.1%})")
+            else:
+                text_content = "无文本内容"
+                all_text.append(f"**文本来源**: 识别失败")
+            
+            all_text.append("")
+            all_text.append("### 识别文本:")
+            all_text.append(text_content)
+            all_text.append("")
+            all_text.append("---")
+            all_text.append("")
+        
+        # 生成下载内容
+        export_content = "\n".join(all_text)
+        filename = f"english_learning_export_{int(time.time())}.md"
+        
+        # 提供下载
+        st.download_button(
+            label="💾 下载文本文件",
+            data=export_content,
+            file_name=filename,
+            mime="text/markdown",
+            type="primary",
+            use_container_width=True
         )
         
-        if view_mode == "概览模式":
-            self._render_overview_mode(results)
-        elif view_mode == "详细模式":
-            self._render_detailed_mode(results)
-        else:
-            self._render_document_generation(results)
+        st.success(f"✅ 已准备下载文件: {filename}")
+        st.info(f"📊 导出统计: {len(results)} 个文件, 总计 {len(export_content)} 个字符")
     
     def _render_overview_mode(self, results: List[Dict]):
         """渲染概览模式"""
