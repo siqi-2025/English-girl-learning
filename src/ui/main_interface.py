@@ -415,8 +415,8 @@ class EnglishLearningInterface:
         st.markdown("### 📁 上传文件列表")
         
         for i, uploaded_file in enumerate(uploaded_files):
-            # 使用Streamlit真实媒体URL
-            image_url = self._get_real_streamlit_media_url(uploaded_file)
+            # 使用Streamlit静态文件服务（官方方案）
+            image_url = self._save_to_static_and_get_correct_url(uploaded_file)
             
             # 显示文件信息和图片对比
             st.markdown(f"#### {i+1}. {uploaded_file.name}")
@@ -604,6 +604,63 @@ class EnglishLearningInterface:
             print(f"[媒体URL] ❌ 获取媒体URL异常: {e}")
             return None
     
+    def _save_to_static_and_get_correct_url(self, uploaded_file) -> Optional[str]:
+        """根据官方文档保存文件到static目录并生成正确的URL"""
+        try:
+            import os
+            import uuid
+            import time
+            from pathlib import Path
+            
+            print(f"[官方静态] 开始保存文件到static目录")
+            
+            # 确保static目录存在（相对于app根目录）
+            project_root = Path(__file__).parent.parent.parent  # 回到项目根目录
+            static_dir = project_root / "static"
+            static_dir.mkdir(exist_ok=True)
+            
+            print(f"[官方静态] 项目根目录: {project_root}")
+            print(f"[官方静态] Static目录: {static_dir}")
+            
+            # 生成唯一文件名
+            timestamp = int(time.time())
+            file_extension = uploaded_file.name.split('.')[-1] if '.' in uploaded_file.name else 'jpg'
+            unique_id = str(uuid.uuid4())[:8]
+            filename = f"upload_{timestamp}_{unique_id}.{file_extension}"
+            
+            # 完整文件路径
+            file_path = static_dir / filename
+            
+            # 保存文件
+            with open(file_path, 'wb') as f:
+                f.write(uploaded_file.getvalue())
+            
+            print(f"[官方静态] ✅ 文件已保存: {file_path}")
+            print(f"[官方静态] 文件大小: {os.path.getsize(file_path)} bytes")
+            
+            # 生成正确的URL格式
+            # 根据官方文档：Files are served at app/static/[filename]
+            is_cloud = self._detect_cloud_environment()
+            
+            if is_cloud:
+                base_url = "https://engirl.streamlit.app"
+            else:
+                base_url = "http://localhost:8501"
+            
+            # 使用正确的官方URL格式: /app/static/filename
+            correct_url = f"{base_url}/app/static/{filename}"
+            
+            print(f"[官方静态] ✅ 正确的官方URL: {correct_url}")
+            print(f"[官方静态] URL格式说明:")
+            print(f"  - 基础URL: {base_url}")
+            print(f"  - 官方路径: /app/static/{filename}")
+            
+            return correct_url
+            
+        except Exception as e:
+            print(f"[官方静态] ❌ 保存文件失败: {e}")
+            return None
+    
     def _process_images_with_ai(self, uploaded_files: List, file_results: List[Dict]) -> Dict:
         """使用AI处理图片并清理临时文件"""
         st.markdown("### 🤖 AI识别处理中...")
@@ -704,19 +761,29 @@ class EnglishLearningInterface:
         return final_result
     
     def _get_static_file_path(self, static_url: str) -> Optional[str]:
-        """从静态URL获取本地文件路径"""
+        """从官方静态URL获取本地文件路径"""
         if not static_url:
             return None
         
         try:
             from pathlib import Path
-            # 从URL中提取文件名
-            filename = static_url.split('/')[-1]
+            # 从官方URL格式中提取文件名 (/app/static/filename)
+            if '/app/static/' in static_url:
+                filename = static_url.split('/app/static/')[-1]
+            elif '/static/' in static_url:  # 兼容旧格式
+                filename = static_url.split('/static/')[-1]
+            else:
+                filename = static_url.split('/')[-1]
+            
+            print(f"[文件路径] 从URL提取文件名: {filename}")
             
             # 构造本地文件路径
             project_root = Path(__file__).parent.parent.parent
             static_dir = project_root / "static"
             file_path = static_dir / filename
+            
+            print(f"[文件路径] 构造的文件路径: {file_path}")
+            print(f"[文件路径] 文件是否存在: {file_path.exists()}")
             
             return str(file_path) if file_path.exists() else None
         except Exception as e:
