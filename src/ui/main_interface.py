@@ -767,8 +767,11 @@ class EnglishLearningInterface:
         results = processing_results['results']
         source = processing_results.get('source', 'unknown')
         
-        # 存储处理结果供后续使用
-        self.processed_results = results
+        # 存储处理结果到session_state供后续使用（修复导出按钮状态丢失问题）
+        if 'processed_results' not in st.session_state:
+            st.session_state.processed_results = []
+        st.session_state.processed_results = results
+        self.processed_results = results  # 保留实例变量用于兼容
         
         # 检查是否是纯显示模式（上传但未处理）
         if source == 'upload_display_only':
@@ -789,9 +792,15 @@ class EnglishLearningInterface:
         with col1:
             st.markdown("### 📋 处理结果")
         with col2:
-            # 导出按钮
+            # 导出按钮 - 修复状态丢失问题
             if st.button("📄 导出文本", type="primary", use_container_width=True):
-                self._export_all_text(successful_results)
+                # 优先使用session_state中的结果，避免状态丢失
+                saved_results = st.session_state.get('processed_results', [])
+                export_results = [r for r in saved_results if r.get('success', False)]
+                if export_results:
+                    self._export_all_text(export_results)
+                else:
+                    st.error("❌ 没有找到已处理的结果，请重新进行AI识别")
         with col3:
             # 统计信息
             st.metric("成功处理", len(successful_results), delta=f"共{len(results)}个")
@@ -1226,7 +1235,18 @@ class EnglishLearningInterface:
             print(f"[主界面] 开始渲染结果区域")
             self.render_results_section(processing_results)
         else:
-            print(f"[主界面] 没有处理结果需要显示")
+            # 检查是否有之前保存的处理结果（修复导出按钮问题）
+            saved_results = st.session_state.get('processed_results', [])
+            if saved_results:
+                print(f"[主界面] 发现保存的结果，重新显示: {len(saved_results)}个文件")
+                # 重新构造processing_results格式
+                restored_results = {
+                    'results': saved_results,
+                    'source': 'restored_from_session'
+                }
+                self.render_results_section(restored_results)
+            else:
+                print(f"[主界面] 没有处理结果需要显示")
         
         # 页脚
         st.markdown("---")
