@@ -103,30 +103,54 @@ class ZhipuAIClient:
                 print(f"[GLM-4V-Flash] 💡 需要在Streamlit Cloud设置中添加GITHUB_TOKEN")
                 return None
             
-            # 生成唯一文件名
+            # 生成唯一文件名 - 先检查原始格式
+            from PIL import Image
+            with Image.open(image_path) as img:
+                original_format = img.format.lower()
+            
+            # 根据原始格式确定扩展名
+            ext_map = {'jpeg': 'jpg', 'png': 'png'}
+            file_ext = ext_map.get(original_format, 'jpg')
+            
             timestamp = int(time.time())
-            filename = f"temp_image_{timestamp}.jpg"
+            filename = f"temp_image_{timestamp}.{file_ext}"
             file_path = f"temp_images/{filename}"
             
-            # 读取图片，转换为标准JPEG格式，然后编码
+            # 验证图片格式和大小限制
             from PIL import Image
+            import os
             
-            # 先用PIL打开并转换为RGB模式，确保是标准JPEG
+            # 检查文件大小 (5MB限制)
+            file_size = os.path.getsize(image_path)
+            max_file_size = 5 * 1024 * 1024  # 5MB
+            if file_size > max_file_size:
+                raise ValueError(f"图片文件过大: {file_size/1024/1024:.1f}MB (限制5MB)")
+            
+            # 打开图片进行格式和尺寸检查
             with Image.open(image_path) as img:
-                # 转换为RGB模式（移除透明通道等）
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                    print(f"[GLM-4V-Flash] 图片模式转换: {img.mode}")
+                # 获取原始图片信息
+                original_format = img.format
+                original_mode = img.mode
+                original_size = img.size
+                print(f"[GLM-4V-Flash] 图片信息: 格式={original_format}, 模式={original_mode}, 尺寸={original_size}, 大小={file_size/1024/1024:.1f}MB")
                 
-                # 保存为临时JPEG文件
-                import io
-                img_buffer = io.BytesIO()
-                img.save(img_buffer, format='JPEG', quality=95)
-                image_data = img_buffer.getvalue()
-                encoded_content = base64.b64encode(image_data).decode('utf-8')
-                print(f"[GLM-4V-Flash] 图片已转换为标准JPEG格式")
+                # 验证图片格式 (只允许JPG, JPEG, PNG)
+                allowed_formats = ['JPEG', 'PNG']
+                if original_format not in allowed_formats:
+                    raise ValueError(f"不支持的图片格式: {original_format} (仅支持JPG、JPEG、PNG)")
+                
+                # 验证图片尺寸 (限制6000x6000像素)
+                max_dimension = 6000
+                if original_size[0] > max_dimension or original_size[1] > max_dimension:
+                    raise ValueError(f"图片尺寸过大: {original_size[0]}x{original_size[1]} (限制{max_dimension}x{max_dimension})")
+                
+                print(f"[GLM-4V-Flash] ✅ 图片验证通过: 格式={original_format}, 尺寸={original_size}, 大小={file_size/1024/1024:.1f}MB")
             
-            print(f"[GLM-4V-Flash] 图片编码完成，大小: {len(encoded_content)} bytes")
+            # 直接读取原始图片文件进行Base64编码，不做格式转换
+            with open(image_path, 'rb') as image_file:
+                image_data = image_file.read()
+                encoded_content = base64.b64encode(image_data).decode('utf-8')
+                print(f"[GLM-4V-Flash] 图片编码完成: 原始大小={len(image_data)}字节, Base64长度={len(encoded_content)}")
             
             # 暂时禁用代理
             original_proxies = {}

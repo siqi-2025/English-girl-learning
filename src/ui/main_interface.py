@@ -159,9 +159,9 @@ class EnglishLearningInterface:
         if input_method == "上传图片文件":
             uploaded_files = st.file_uploader(
                 "选择英语教材图片",
-                type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
+                type=['png', 'jpg', 'jpeg'],
                 accept_multiple_files=True,
-                help="支持多种图片格式，可同时上传多个文件"
+                help="仅支持JPG、JPEG、PNG格式，每张图片最大5MB，像素不超过6000×6000"
             )
             
             if uploaded_files:
@@ -415,11 +415,63 @@ class EnglishLearningInterface:
         results = []
         
         # 现代化简洁显示
-        with st.status("📤 正在上传图片到GitHub图床...", expanded=True) as status:
+        with st.status("📤 正在验证和上传图片...", expanded=True) as status:
             for i, uploaded_file in enumerate(uploaded_files):
-                st.write(f"处理 {uploaded_file.name}...")
+                st.write(f"验证 {uploaded_file.name}...")
+                
+                # 验证文件大小 (5MB限制)
+                max_size = 5 * 1024 * 1024  # 5MB
+                if uploaded_file.size > max_size:
+                    st.error(f"❌ {uploaded_file.name}: 文件过大 ({uploaded_file.size/1024/1024:.1f}MB)，限制5MB")
+                    results.append({
+                        'filename': uploaded_file.name,
+                        'size': uploaded_file.size,
+                        'type': uploaded_file.type,
+                        'url': None,
+                        'error': f'文件过大: {uploaded_file.size/1024/1024:.1f}MB (限制5MB)',
+                        'displayed': False,
+                        'success': False
+                    })
+                    continue
+                
+                # 验证图片尺寸
+                try:
+                    from PIL import Image
+                    img = Image.open(uploaded_file)
+                    width, height = img.size
+                    max_dimension = 6000
+                    
+                    if width > max_dimension or height > max_dimension:
+                        st.error(f"❌ {uploaded_file.name}: 尺寸过大 ({width}×{height})，限制{max_dimension}×{max_dimension}")
+                        results.append({
+                            'filename': uploaded_file.name,
+                            'size': uploaded_file.size,
+                            'type': uploaded_file.type,
+                            'url': None,
+                            'error': f'尺寸过大: {width}×{height} (限制{max_dimension}×{max_dimension})',
+                            'displayed': False,
+                            'success': False
+                        })
+                        continue
+                    
+                    st.write(f"✅ {uploaded_file.name}: {width}×{height}, {uploaded_file.size/1024/1024:.1f}MB")
+                    
+                except Exception as e:
+                    st.error(f"❌ {uploaded_file.name}: 图片格式错误 - {e}")
+                    results.append({
+                        'filename': uploaded_file.name,
+                        'size': uploaded_file.size,
+                        'type': uploaded_file.type,
+                        'url': None,
+                        'error': f'图片格式错误: {e}',
+                        'displayed': False,
+                        'success': False
+                    })
+                    continue
                 
                 # 上传到GitHub图床
+                st.write(f"上传 {uploaded_file.name} 到GitHub图床...")
+                uploaded_file.seek(0)  # 重置文件指针
                 image_url = self._upload_to_github_and_get_url(uploaded_file)
                 
                 # 记录结果
