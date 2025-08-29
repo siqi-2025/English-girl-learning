@@ -638,6 +638,17 @@ class EnglishLearningInterface:
             print(f"[官方静态] ✅ 文件已保存: {file_path}")
             print(f"[官方静态] 文件大小: {os.path.getsize(file_path)} bytes")
             
+            # 验证文件确实存在并可读
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                print(f"[官方静态] ✅ 文件验证通过")
+                # 在Streamlit界面显示保存状态
+                import streamlit as st
+                st.success(f"📁 文件已保存到: static/{filename}")
+                st.info(f"📊 文件大小: {os.path.getsize(file_path):,} bytes")
+            else:
+                print(f"[官方静态] ❌ 文件保存失败")
+                return None
+            
             # 生成正确的URL格式
             # 根据官方文档：Files are served at app/static/[filename]
             is_cloud = self._detect_cloud_environment()
@@ -654,6 +665,29 @@ class EnglishLearningInterface:
             print(f"[官方静态] URL格式说明:")
             print(f"  - 基础URL: {base_url}")
             print(f"  - 官方路径: /app/static/{filename}")
+            
+            # 创建一个测试HTML文件来验证静态服务是否工作
+            test_html_content = f'''<!DOCTYPE html>
+<html>
+<head><title>Static File Test</title></head>
+<body>
+<h1>Static file serving is working!</h1>
+<p>Image file: {filename}</p>
+<p>Generated at: {time.time()}</p>
+</body>
+</html>'''
+            
+            test_html_path = static_dir / f"test_{unique_id}.html"
+            try:
+                with open(test_html_path, 'w', encoding='utf-8') as f:
+                    f.write(test_html_content)
+                test_html_url = f"{base_url}/app/static/test_{unique_id}.html"
+                print(f"[官方静态] 🧪 创建测试HTML: {test_html_url}")
+                
+                import streamlit as st
+                st.info(f"🧪 测试HTML: [点击查看]({test_html_url})")
+            except Exception as e:
+                print(f"[官方静态] ⚠️ 测试HTML创建失败: {e}")
             
             return correct_url
             

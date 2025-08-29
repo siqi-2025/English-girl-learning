@@ -395,17 +395,49 @@ class ZhipuAIClient:
             import streamlit as st
             st.warning(f"🔍 调试信息 - 传递给API的URL: {image_url}")
             
-            # 测试URL是否可访问
+            # 测试URL是否可访问并跟踪重定向
             try:
                 import requests
                 print(f"[GLM-4V-Flash] 测试URL可访问性: {image_url}")
-                test_response = requests.head(image_url, timeout=5)
+                
+                # 允许重定向，获取最终URL
+                test_response = requests.head(image_url, timeout=5, allow_redirects=True)
+                final_url = test_response.url
+                
+                print(f"[GLM-4V-Flash] 最终URL: {final_url}")
+                print(f"[GLM-4V-Flash] HTTP状态码: {test_response.status_code}")
+                
                 if test_response.status_code == 200:
                     st.success(f"✅ URL可访问 (HTTP {test_response.status_code})")
-                    print(f"[GLM-4V-Flash] ✅ URL可访问: HTTP {test_response.status_code}")
+                    if final_url != image_url:
+                        st.info(f"🔄 URL被重定向到: {final_url}")
+                        # 更新image_url为最终URL
+                        image_url = final_url
+                        print(f"[GLM-4V-Flash] 更新为最终URL: {image_url}")
                 else:
                     st.error(f"❌ URL返回错误: HTTP {test_response.status_code}")
                     print(f"[GLM-4V-Flash] ❌ URL返回: HTTP {test_response.status_code}")
+                    
+                    # 尝试不同的URL格式
+                    st.warning("🔧 尝试其他URL格式...")
+                    alternative_urls = [
+                        image_url.replace('/app/static/', '/static/'),  # 去掉app前缀
+                        image_url.replace('/app/static/', '/_static/'), # 下划线前缀  
+                        image_url.replace('/app/static/', '/streamlit/static/'), # streamlit前缀
+                    ]
+                    
+                    for alt_url in alternative_urls:
+                        try:
+                            alt_response = requests.head(alt_url, timeout=5, allow_redirects=True)
+                            print(f"[GLM-4V-Flash] 测试备选URL {alt_url}: HTTP {alt_response.status_code}")
+                            if alt_response.status_code == 200:
+                                st.success(f"✅ 备选URL可用: {alt_url}")
+                                image_url = alt_response.url
+                                print(f"[GLM-4V-Flash] 使用备选URL: {image_url}")
+                                break
+                        except:
+                            continue
+                            
             except Exception as e:
                 st.error(f"❌ URL访问失败: {e}")
                 print(f"[GLM-4V-Flash] ❌ URL访问异常: {e}")
