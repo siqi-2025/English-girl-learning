@@ -777,11 +777,22 @@ class EnglishLearningInterface:
         if source == 'upload_display_only':
             st.info("📋 图片已上传，点击 '🤖 开始AI识别处理' 按钮进行处理")
             return
+            
+        # restored_from_session类型的结果直接显示，无需特殊处理
         
         # 显示成功处理的结果
         successful_results = [r for r in results if r.get('success', False)]
+        
+        # 调试：显示所有结果的success状态
+        st.write("🔍 调试信息 - 所有结果的成功状态:")
+        for i, result in enumerate(results):
+            success = result.get('success', False)
+            filename = result.get('filename', f'文件{i+1}')
+            st.write(f"  {i+1}. {filename}: success={success}")
+        
         if not successful_results:
             st.error("❌ 没有成功处理的图片")
+            st.write(f"总共 {len(results)} 个结果，成功 {len(successful_results)} 个")
             return
         
         # 现代化UI - 左右分栏布局
