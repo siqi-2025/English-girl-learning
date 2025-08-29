@@ -418,17 +418,42 @@ class EnglishLearningInterface:
             # 保存文件到static目录并获取URL
             image_url = self._save_file_to_static_and_get_url(uploaded_file)
             
-            # 简洁的文件信息显示
-            col1, col2, col3 = st.columns([3, 2, 1])
+            # 显示文件信息和图片对比
+            st.markdown(f"#### {i+1}. {uploaded_file.name}")
+            
+            col1, col2 = st.columns(2)
             with col1:
-                st.write(f"**{i+1}. {uploaded_file.name}**")
-            with col2:
-                st.write(f"📊 {uploaded_file.size:,} bytes")
-            with col3:
+                st.write(f"📊 **大小**: {uploaded_file.size:,} bytes")
+                st.write(f"🔗 **构造URL**: `{image_url if image_url else '生成失败'}`")
                 if image_url:
-                    st.write("✅ 就绪")
+                    st.write("✅ URL已生成")
                 else:
-                    st.write("❌ 失败")
+                    st.write("❌ URL生成失败")
+            
+            with col2:
+                # 显示图片并获取实际URL进行对比
+                st.write("**🖼️ 实际图片显示:**")
+                st.image(uploaded_file, caption=f"实际显示: {uploaded_file.name}", width=200)
+                
+                # 尝试获取图片的实际媒体URL
+                try:
+                    # 使用Streamlit内部方法获取真实URL
+                    import streamlit.elements.image as st_image
+                    actual_url = st_image.image_to_url(uploaded_file.getvalue())
+                    st.write(f"🎯 **实际URL**: `{actual_url}`")
+                    
+                    # 比较URL
+                    if image_url and actual_url:
+                        if image_url == actual_url:
+                            st.success("✅ URL匹配！")
+                        else:
+                            st.error("❌ URL不匹配！")
+                            st.write("**差异分析**:")
+                            st.write(f"- 构造的: `{image_url}`")
+                            st.write(f"- 实际的: `{actual_url}`")
+                except Exception as e:
+                    st.write(f"⚠️ 无法获取实际URL: {e}")
+                    st.write("💡 **对比说明**: 右键图片查看实际URL")
             
             # 记录结果（包含URL）
             results.append({
