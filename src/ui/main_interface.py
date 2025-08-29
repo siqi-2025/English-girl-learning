@@ -656,18 +656,28 @@ class EnglishLearningInterface:
             return None
     
     def _cleanup_static_files(self, processed_results: List[Dict]) -> Dict:
-        """清理处理完成的静态文件"""
+        """清理处理完成的静态文件（只删除成功处理的文件）"""
         cleanup_summary = {
             'total_files': len(processed_results),
             'deleted_files': 0,
+            'skipped_files': 0,
             'failed_deletions': 0,
             'deleted_list': [],
+            'skipped_list': [],
             'failed_list': []
         }
         
         for result in processed_results:
             file_path = result.get('file_path')
             filename = result.get('filename', 'unknown')
+            success = result.get('success', False)
+            
+            # 只删除成功处理的文件
+            if not success:
+                cleanup_summary['skipped_files'] += 1
+                cleanup_summary['skipped_list'].append(filename)
+                print(f"[清理] ⏭️ 跳过失败文件: {filename} (保留用于调试)")
+                continue
             
             if file_path:
                 try:
@@ -688,8 +698,11 @@ class EnglishLearningInterface:
         
         # 显示清理结果
         if cleanup_summary['deleted_files'] > 0:
-            st.success(f"🧹 已清理 {cleanup_summary['deleted_files']} 个临时文件")
+            st.success(f"🧹 已清理 {cleanup_summary['deleted_files']} 个成功处理的文件")
         
+        if cleanup_summary['skipped_files'] > 0:
+            st.info(f"💾 保留 {cleanup_summary['skipped_files']} 个失败文件用于调试")
+            
         if cleanup_summary['failed_deletions'] > 0:
             st.warning(f"⚠️ {cleanup_summary['failed_deletions']} 个文件清理失败")
         

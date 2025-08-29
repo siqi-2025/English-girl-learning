@@ -395,6 +395,21 @@ class ZhipuAIClient:
             import streamlit as st
             st.warning(f"🔍 调试信息 - 传递给API的URL: {image_url}")
             
+            # 测试URL是否可访问
+            try:
+                import requests
+                print(f"[GLM-4V-Flash] 测试URL可访问性: {image_url}")
+                test_response = requests.head(image_url, timeout=5)
+                if test_response.status_code == 200:
+                    st.success(f"✅ URL可访问 (HTTP {test_response.status_code})")
+                    print(f"[GLM-4V-Flash] ✅ URL可访问: HTTP {test_response.status_code}")
+                else:
+                    st.error(f"❌ URL返回错误: HTTP {test_response.status_code}")
+                    print(f"[GLM-4V-Flash] ❌ URL返回: HTTP {test_response.status_code}")
+            except Exception as e:
+                st.error(f"❌ URL访问失败: {e}")
+                print(f"[GLM-4V-Flash] ❌ URL访问异常: {e}")
+            
             # 调用GLM-4V-Flash API - 严格按照用户参考代码格式
             response = self.client.chat.completions.create(
                 model=self.vision_model,  # "glm-4v-flash"
