@@ -736,9 +736,22 @@ class EnglishLearningInterface:
                 st.info(f"🔗 GitHub URL: {github_url}")
                 return github_url
             else:
-                print(f"[GitHub图床] ❌ 上传失败")
+                print(f"[GitHub图床] ❌ GitHub上传失败，尝试使用Streamlit内部URL")
                 import streamlit as st
-                st.error("❌ GitHub图床上传失败")
+                st.warning("❌ GitHub图床上传失败，尝试备选方案...")
+                
+                # 备选方案1: 使用streamlit内部image_to_url
+                try:
+                    import streamlit.elements.image as st_image
+                    media_url = st_image.image_to_url(uploaded_file.getvalue())
+                    if media_url:
+                        print(f"[GitHub图床] ✅ 备选方案成功: {media_url}")
+                        st.success(f"🔗 使用Streamlit媒体URL: {media_url}")
+                        return media_url
+                except Exception as e:
+                    print(f"[GitHub图床] 备选方案1失败: {e}")
+                    st.error(f"备选方案失败: {e}")
+                
                 return None
                 
         except Exception as e:

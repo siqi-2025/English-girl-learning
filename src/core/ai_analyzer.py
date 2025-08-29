@@ -99,7 +99,8 @@ class ZhipuAIClient:
             branch = "main"
             
             if not github_token:
-                print(f"[GLM-4V-Flash] 未配置GitHub token，跳过真实上传")
+                print(f"[GLM-4V-Flash] ❌ 未配置GitHub token，跳过GitHub上传")
+                print(f"[GLM-4V-Flash] 💡 需要在Streamlit Cloud设置中添加GITHUB_TOKEN")
                 return None
             
             # 生成唯一文件名
