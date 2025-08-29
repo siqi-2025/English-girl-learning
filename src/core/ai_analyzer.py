@@ -287,15 +287,38 @@ class ZhipuAIClient:
 
             # GLM-4V-Flash处理图片URL
             print(f"[GLM-4V-Flash] 开始准备图片URL，输入类型: {type(image_input)}")
+            print(f"[GLM-4V-Flash] 输入值: {image_input}")
             
             import streamlit as st
             import tempfile
             import os
             
             image_url = None
-            temp_file_path = None
             
-            if uploaded_file:
+            # 优先处理字符串URL
+            if isinstance(image_input, str):
+                # 如果输入是字符串，检查是否是URL
+                if image_input.startswith(('http://', 'https://')):
+                    # 直接使用URL（静态文件URL）
+                    image_url = image_input
+                    print(f"[GLM-4V-Flash] ✅ 使用静态URL: {image_url}")
+                    st.info(f"🔗 使用静态文件URL进行AI识别")
+                else:
+                    # 本地文件路径，尝试上传到GitHub
+                    print(f"[GLM-4V-Flash] 处理本地文件路径: {image_input}")
+                    image_url = self._upload_image_to_github(image_input)
+                    
+                    if not image_url:
+                        error_msg = f'无法处理本地文件路径: {image_input}'
+                        print(f"[GLM-4V-Flash] ❌ {error_msg}")
+                        return {
+                            'success': False,
+                            'error': error_msg,
+                            'raw_text': '',
+                            'confidence': 0.0
+                        }
+            
+            elif uploaded_file:
                 # 方案1: 保存Streamlit上传文件到临时文件，然后上传到GitHub
                 print(f"[GLM-4V-Flash] 处理Streamlit上传文件")
                 
@@ -330,16 +353,6 @@ class ZhipuAIClient:
                             'raw_text': '',
                             'confidence': 0.0
                         }
-                
-            elif isinstance(image_input, str):
-                # 方案2: 直接上传文件路径到GitHub
-                print(f"[GLM-4V-Flash] 直接上传文件: {image_input}")
-                image_url = self._upload_image_to_github(image_input)
-                
-                if not image_url:
-                    # 如果GitHub上传失败，直接使用本地路径（本地测试用）
-                    image_url = f"file://{image_input}"
-                    print(f"[GLM-4V-Flash] ⚠️ 使用本地文件路径: {image_url}")
                     
             else:
                 error_msg = f'不支持的图像输入格式: {type(image_input)}'
@@ -374,7 +387,13 @@ class ZhipuAIClient:
             
             print(f"[GLM-4V-Flash] 调用API，模型: {self.vision_model}")
             print(f"[GLM-4V-Flash] 图像URL: {image_url}")
+            print(f"[GLM-4V-Flash] URL类型: {type(image_url)}")
+            print(f"[GLM-4V-Flash] URL长度: {len(image_url) if image_url else 0}")
             print(f"[GLM-4V-Flash] 消息格式: {json.dumps(messages, ensure_ascii=False, indent=2)}")
+            
+            # 在Streamlit界面也显示URL信息，便于调试
+            import streamlit as st
+            st.warning(f"🔍 调试信息 - 传递给API的URL: {image_url}")
             
             # 调用GLM-4V-Flash API - 严格按照用户参考代码格式
             response = self.client.chat.completions.create(
