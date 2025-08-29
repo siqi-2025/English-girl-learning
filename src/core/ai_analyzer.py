@@ -67,7 +67,10 @@ class ZhipuAIClient:
         
         # 初始化智普AI客户端
         if ZHIPUAI_SDK_AVAILABLE and self.api_key:
-            self.client = ZhipuAI(api_key=self.api_key)
+            self.client = ZhipuAI(
+                api_key=self.api_key,
+                timeout=120  # 设置为2分钟超时，适应免费API的响应时间
+            )
         else:
             self.client = None
             
@@ -389,6 +392,9 @@ class ZhipuAIClient:
                 print(f"[GLM-4V-Flash] ERROR: URL访问异常: {e}")
             
             # 调用GLM-4V-Flash API - 严格按照官方API格式
+            print(f"[GLM-4V-Flash] 开始调用API（免费版本需要1-2分钟）...")
+            st.info("⏳ GLM-4V-Flash API处理中，免费版本响应较慢，请耐心等待1-2分钟...")
+            
             response = self.client.chat.completions.create(
                 model=self.vision_model,  # "glm-4v-flash"
                 messages=messages,
@@ -399,6 +405,7 @@ class ZhipuAIClient:
             )
             
             print(f"[GLM-4V-Flash] API调用完成")
+            st.success("✅ GLM-4V-Flash API调用成功！")
             
             # 解析响应
             if response and response.choices:
