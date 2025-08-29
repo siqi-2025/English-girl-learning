@@ -84,6 +84,7 @@ class ZhipuAIClient:
     
     def _upload_image_to_github(self, image_path: str) -> Optional[str]:
         """使用GitHub作为图床上传图片"""
+        original_proxies = {}  # 提前初始化，避免finally块引用未定义变量
         try:
             print(f"[GLM-4V-Flash] 准备上传图片到GitHub图床: {image_path}")
             

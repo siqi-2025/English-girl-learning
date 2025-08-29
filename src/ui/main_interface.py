@@ -20,7 +20,7 @@ class EnglishLearningInterface:
     """英语学习助手主界面"""
     
     def __init__(self):
-        self.version = "v1.5.0"
+        self.version = "v1.6.0"
         self.vision_processor = None
         self.ai_analyzer = None
         self.doc_generator = None
@@ -406,37 +406,29 @@ class EnglishLearningInterface:
         return {'results': results, 'source': 'folder'}
     
     def _display_uploaded_images(self, uploaded_files: List) -> Dict:
-        """显示上传的图片，不调用AI处理"""
+        """准备图片文件并提供AI处理选项"""
         st.success(f"✅ 已上传 {len(uploaded_files)} 个文件")
         
         results = []
         
+        # 简化显示：只显示文件列表和处理状态
+        st.markdown("### 📁 上传文件列表")
+        
         for i, uploaded_file in enumerate(uploaded_files):
-            st.markdown(f"### 📷 图片 {i+1}: {uploaded_file.name}")
-            
-            # 显示文件信息
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.write(f"**文件名**: {uploaded_file.name}")
-            with col2:
-                st.write(f"**文件大小**: {uploaded_file.size} bytes")
-            with col3:
-                st.write(f"**文件类型**: {uploaded_file.type}")
-            
             # 保存文件到static目录并获取URL
             image_url = self._save_file_to_static_and_get_url(uploaded_file)
-            if image_url:
-                st.write(f"**🔗 图片URL**: `{image_url}`")
-                st.info(f"💡 此URL可用于AI API调用")
-            else:
-                st.warning("⚠️ 无法获取图片URL")
             
-            # 显示图片
-            st.image(uploaded_file, caption=f"上传的图片: {uploaded_file.name}", use_container_width=True)
-            
-            # 添加分隔线
-            if i < len(uploaded_files) - 1:
-                st.divider()
+            # 简洁的文件信息显示
+            col1, col2, col3 = st.columns([3, 2, 1])
+            with col1:
+                st.write(f"**{i+1}. {uploaded_file.name}**")
+            with col2:
+                st.write(f"📊 {uploaded_file.size:,} bytes")
+            with col3:
+                if image_url:
+                    st.write("✅ 就绪")
+                else:
+                    st.write("❌ 失败")
             
             # 记录结果（包含URL）
             results.append({
@@ -449,10 +441,18 @@ class EnglishLearningInterface:
         
         # 添加AI处理按钮
         st.markdown("---")
-        if st.button("🤖 开始AI识别处理", type="primary"):
-            return self._process_images_with_ai(uploaded_files, results)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🤖 开始AI识别处理", type="primary", use_container_width=True):
+                return self._process_images_with_ai(uploaded_files, results)
+        with col2:
+            if st.button("❌ 取消", type="secondary", use_container_width=True):
+                # 清理已上传的文件
+                self._cleanup_static_files(results)
+                st.warning("已取消并清理文件")
+                return None
         
-        st.info("💡 图片显示完成。点击上方按钮开始AI处理。")
+        st.info("💡 文件已准备就绪。点击"开始AI识别处理"按钮进行处理。")
         return {'results': results, 'source': 'upload_display_only'}
     
     def _save_file_to_static_and_get_url(self, uploaded_file) -> Optional[str]:
