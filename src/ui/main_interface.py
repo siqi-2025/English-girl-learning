@@ -911,6 +911,12 @@ class EnglishLearningInterface:
             st.warning("没有可导出的内容")
             return
         
+        # 调试：显示结果结构
+        st.write("🔍 调试信息 - 结果数据结构:")
+        for i, result in enumerate(results):
+            with st.expander(f"文件 {i+1}: {result.get('filename', 'Unknown')}"):
+                st.json(result)
+        
         # 收集所有文本
         all_text = []
         export_time = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -925,22 +931,33 @@ class EnglishLearningInterface:
             filename = result.get('filename', f'文件{i+1}')
             all_text.append(f"## {i+1}. {filename}")
             
-            # 获取文本内容
+            # 获取文本内容 - 改进逻辑，支持多种数据结构
             enhanced_result = result.get('enhanced_result', {})
             vision_result = result.get('vision_result', {})
             
+            text_content = "无文本内容"
+            confidence = 0
+            source_info = "识别失败"
+            
+            # 尝试从不同位置获取文本
             if enhanced_result and enhanced_result.get('corrected_text'):
                 text_content = enhanced_result['corrected_text']
                 confidence = enhanced_result.get('confidence', 0)
-                all_text.append(f"**文本来源**: AI增强识别 (置信度: {confidence:.1%})")
+                source_info = f"AI增强识别 (置信度: {confidence:.1%})"
+            elif enhanced_result and enhanced_result.get('raw_ocr'):
+                text_content = enhanced_result['raw_ocr']
+                confidence = enhanced_result.get('confidence', 0)
+                source_info = f"AI处理原文 (置信度: {confidence:.1%})"
             elif vision_result and vision_result.get('raw_text'):
                 text_content = vision_result['raw_text']
                 confidence = vision_result.get('confidence', 0)
-                all_text.append(f"**文本来源**: 原始识别 (置信度: {confidence:.1%})")
-            else:
-                text_content = "无文本内容"
-                all_text.append(f"**文本来源**: 识别失败")
+                source_info = f"原始识别 (置信度: {confidence:.1%})"
+            elif result.get('raw_text'):  # 直接在结果中
+                text_content = result['raw_text']
+                confidence = result.get('confidence', 0)
+                source_info = f"直接文本 (置信度: {confidence:.1%})"
             
+            all_text.append(f"**文本来源**: {source_info}")
             all_text.append("")
             all_text.append("### 识别文本:")
             all_text.append(text_content)
