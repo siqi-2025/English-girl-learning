@@ -415,8 +415,8 @@ class EnglishLearningInterface:
         st.markdown("### 📁 上传文件列表")
         
         for i, uploaded_file in enumerate(uploaded_files):
-            # 使用Streamlit静态文件服务（官方方案）
-            image_url = self._save_to_static_and_get_correct_url(uploaded_file)
+            # 使用GitHub图床（最可靠的外部访问方案）
+            image_url = self._upload_to_github_and_get_url(uploaded_file)
             
             # 显示文件信息和图片对比
             st.markdown(f"#### {i+1}. {uploaded_file.name}")
@@ -693,6 +693,58 @@ class EnglishLearningInterface:
             
         except Exception as e:
             print(f"[官方静态] ❌ 保存文件失败: {e}")
+            return None
+    
+    def _upload_to_github_and_get_url(self, uploaded_file) -> Optional[str]:
+        """上传文件到GitHub并获取真实的访问URL"""
+        try:
+            print(f"[GitHub图床] 开始上传文件到GitHub")
+            
+            # 创建临时文件
+            import tempfile
+            import time
+            import uuid
+            
+            timestamp = int(time.time())
+            file_extension = uploaded_file.name.split('.')[-1] if '.' in uploaded_file.name else 'jpg'
+            unique_id = str(uuid.uuid4())[:8]
+            filename = f"upload_{timestamp}_{unique_id}.{file_extension}"
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_extension}') as temp_file:
+                temp_file.write(uploaded_file.getvalue())
+                temp_file_path = temp_file.name
+            
+            print(f"[GitHub图床] 临时文件创建: {temp_file_path}")
+            
+            # 使用AI分析器的GitHub上传功能
+            from ..core.ai_analyzer import ZhipuAIClient
+            ai_client = ZhipuAIClient()
+            github_url = ai_client._upload_image_to_github(temp_file_path)
+            
+            # 清理临时文件
+            import os
+            try:
+                os.unlink(temp_file_path)
+                print(f"[GitHub图床] 清理临时文件: {temp_file_path}")
+            except:
+                pass
+            
+            if github_url:
+                print(f"[GitHub图床] ✅ 上传成功: {github_url}")
+                import streamlit as st
+                st.success(f"📤 已上传到GitHub图床")
+                st.info(f"🔗 GitHub URL: {github_url}")
+                return github_url
+            else:
+                print(f"[GitHub图床] ❌ 上传失败")
+                import streamlit as st
+                st.error("❌ GitHub图床上传失败")
+                return None
+                
+        except Exception as e:
+            print(f"[GitHub图床] ❌ 上传异常: {e}")
+            import streamlit as st
+            st.error(f"❌ GitHub图床上传异常: {e}")
             return None
     
     def _process_images_with_ai(self, uploaded_files: List, file_results: List[Dict]) -> Dict:
