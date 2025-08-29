@@ -452,7 +452,7 @@ class EnglishLearningInterface:
                 st.warning("已取消并清理文件")
                 return None
         
-        st.info("💡 文件已准备就绪。点击"开始AI识别处理"按钮进行处理。")
+        st.info("💡 文件已准备就绪。点击'开始AI识别处理'按钮进行处理。")
         return {'results': results, 'source': 'upload_display_only'}
     
     def _save_file_to_static_and_get_url(self, uploaded_file) -> Optional[str]:
