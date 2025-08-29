@@ -415,8 +415,8 @@ class EnglishLearningInterface:
         st.markdown("### 📁 上传文件列表")
         
         for i, uploaded_file in enumerate(uploaded_files):
-            # 保存文件到static目录并获取URL
-            image_url = self._save_file_to_static_and_get_url(uploaded_file)
+            # 使用Streamlit真实媒体URL
+            image_url = self._get_real_streamlit_media_url(uploaded_file)
             
             # 显示文件信息和图片对比
             st.markdown(f"#### {i+1}. {uploaded_file.name}")
@@ -560,6 +560,49 @@ class EnglishLearningInterface:
         
         print(f"[环境检测] 检测到本地环境")
         return False
+    
+    def _get_real_streamlit_media_url(self, uploaded_file) -> Optional[str]:
+        """获取Streamlit的真实媒体URL"""
+        try:
+            print(f"[媒体URL] 开始获取Streamlit真实媒体URL")
+            
+            # 方法1: 使用streamlit.elements.image.image_to_url
+            try:
+                import streamlit.elements.image as st_image
+                media_url = st_image.image_to_url(uploaded_file.getvalue())
+                print(f"[媒体URL] ✅ 通过image_to_url获取: {media_url}")
+                return media_url
+            except Exception as e:
+                print(f"[媒体URL] image_to_url方法失败: {e}")
+            
+            # 方法2: 尝试其他Streamlit内部方法
+            try:
+                import streamlit.runtime.media_file_manager as media_mgr
+                # 这需要进一步研究Streamlit内部API
+                print(f"[媒体URL] 尝试media_file_manager方法...")
+            except Exception as e:
+                print(f"[媒体URL] media_file_manager方法不可用: {e}")
+            
+            # 方法3: 检查uploaded_file的内部属性
+            try:
+                print(f"[媒体URL] 检查uploaded_file的所有属性:")
+                attrs = dir(uploaded_file)
+                for attr in attrs:
+                    if 'url' in attr.lower() or 'path' in attr.lower() or 'id' in attr.lower():
+                        try:
+                            value = getattr(uploaded_file, attr)
+                            print(f"[媒体URL]   {attr}: {value}")
+                        except:
+                            print(f"[媒体URL]   {attr}: <无法获取>")
+            except Exception as e:
+                print(f"[媒体URL] 属性检查失败: {e}")
+            
+            print(f"[媒体URL] ❌ 无法获取真实媒体URL")
+            return None
+            
+        except Exception as e:
+            print(f"[媒体URL] ❌ 获取媒体URL异常: {e}")
+            return None
     
     def _process_images_with_ai(self, uploaded_files: List, file_results: List[Dict]) -> Dict:
         """使用AI处理图片并清理临时文件"""
